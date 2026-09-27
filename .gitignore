@@ -1,0 +1,21 @@
+# .NET / IDE
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Local build and scratch output
+artifacts/
+tmp/
+*.log
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,34 @@
+name: Documentation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check planning documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            README.md \
+            project_plan.md \
+            docs/requirements.md \
+            docs/architecture.md \
+            docs/api.md \
+            docs/implementation_outline.md \
+            docs/team.md \
+            docs/development-process.md \
+            docs/sources.md; do
+            test -s "$file"
+          done
+          if grep -R -nE 'C:/Users/|E:/comp_graph' --include='*.md' .; then
+            echo 'Local computer paths must not appear in published Markdown.' >&2
+            exit 1
+          fi
