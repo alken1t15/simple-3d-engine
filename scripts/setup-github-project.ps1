@@ -62,11 +62,11 @@ function Create-Or-Get-Issue($issue) {
 
 function Get-ProjectItemUrls {
     $itemsJson = Invoke-Gh project item-list $ProjectNumber --owner $ProjectOwner --format json --limit 200 | ConvertFrom-Json
-    $urls = New-Object System.Collections.Generic.HashSet[string]
+    $urls = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($item in $itemsJson.items) {
         if ($item.content.url) { [void]$urls.Add([string]$item.content.url) }
     }
-    return $urls
+    return ,$urls
 }
 
 function Add-To-Project-And-SetFields($url, $issue, $existingProjectUrls) {
@@ -525,4 +525,5 @@ foreach ($issue in $issues) {
 }
 
 Write-Host "GitHub Project setup completed."
+
 
