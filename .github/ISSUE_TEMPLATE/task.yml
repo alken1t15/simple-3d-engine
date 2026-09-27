@@ -1,0 +1,63 @@
+name: Project task
+description: Рабочая задача для GitHub Project
+title: "[Task] "
+labels: []
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Задача
+      description: Что нужно сделать.
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Конкретные шаги выполнения.
+      value: |
+        - [ ] Описать первый конкретный шаг
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Как понять, что задача готова.
+      value: |
+        - Результат можно проверить по конкретному критерию
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Requirements
+        - Architecture
+        - Core
+        - Rendering
+        - Demo
+        - Tests
+        - Docs
+        - Process
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Ссылки на документы, PR или решения команды.
+    validations:
+      required: false

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Project plan
+    url: https://github.com/alken1t15/simple-3d-engine/blob/main/project_plan.md
+    about: Read the current requirements, roadmap and Definition of Done before creating a task.
