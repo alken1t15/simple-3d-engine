@@ -19,3 +19,15 @@ tmp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local secrets and API keys
+.env
+.env.*
+!.env.example
+key
+key/
+keys/
+secrets/
+*.key
+*.pem
+
