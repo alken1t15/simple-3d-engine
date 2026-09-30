@@ -35,10 +35,13 @@ internal sealed class GpuMesh : IDisposable
         GL.BindVertexArray(0);
     }
 
-    public void Draw()
+    public void Draw() => DrawRange(0, _indexCount);
+
+    // Рисует часть индексов: [firstIndex, firstIndex + indexCount).
+    public void DrawRange(int firstIndex, int indexCount)
     {
         GL.BindVertexArray(_vertexArray);
-        GL.DrawElements(PrimitiveType.Triangles, _indexCount, DrawElementsType.UnsignedInt, 0);
+        GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, firstIndex * sizeof(uint));
     }
 
     public void Dispose()
