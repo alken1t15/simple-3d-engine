@@ -55,6 +55,17 @@ internal sealed class SpikeWindow : GameWindow
 
     private static readonly Vector3 RotationAxis = Vector3.Normalize(new Vector3(0.3f, 1f, 0.2f));
 
+    // Цвета граней в режиме без текстуры, в порядке граней Primitives.CreateCube:
+    // +X красный, -X голубой, +Y зеленый, -Y пурпурный, +Z синий, -Z желтый.
+    private static readonly Vector4[] FaceColors =
+    [
+        new(1f, 0f, 0f, 1f), new(0f, 1f, 1f, 1f),
+        new(0f, 1f, 0f, 1f), new(1f, 0f, 1f, 1f),
+        new(0f, 0f, 1f, 1f), new(1f, 1f, 0f, 1f),
+    ];
+
+    private static bool s_glInfoPrinted; // версии GL печатаются один раз на процесс, а не в каждом цикле --cycles
+
     private readonly SpikeOptions _options;
     private readonly OrbitCamera _camera = new(Vector3.Zero, new Vector3(2.5f, 2f, 4f));
 
@@ -72,6 +83,8 @@ internal sealed class SpikeWindow : GameWindow
     private int _hasTextureLocation;
     private float _angle;
     private bool _depthTest;
+    private CullMode _culling;
+    private bool _texture;
     private bool _rotationPaused;
 
     public SpikeWindow(SpikeOptions options)
@@ -87,6 +100,10 @@ internal sealed class SpikeWindow : GameWindow
     {
         _options = options;
         _depthTest = options.DepthTest;
+        _culling = options.Culling;
+        _texture = options.Texture;
+        _angle = options.Angle ?? 0f;
+        _rotationPaused = options.Angle is not null;
         VSync = VSyncMode.On;
     }
 
@@ -96,13 +113,18 @@ internal sealed class SpikeWindow : GameWindow
     {
         base.OnLoad();
 
-        Console.WriteLine($"GL_VENDOR: {GL.GetString(StringName.Vendor)}");
-        Console.WriteLine($"GL_RENDERER: {GL.GetString(StringName.Renderer)}");
-        Console.WriteLine($"GL_VERSION: {GL.GetString(StringName.Version)}");
-        Console.WriteLine($"GLSL: {GL.GetString(StringName.ShadingLanguageVersion)}");
+        if (!s_glInfoPrinted)
+        {
+            Console.WriteLine($"GL_VENDOR: {GL.GetString(StringName.Vendor)}");
+            Console.WriteLine($"GL_RENDERER: {GL.GetString(StringName.Renderer)}");
+            Console.WriteLine($"GL_VERSION: {GL.GetString(StringName.Version)}");
+            Console.WriteLine($"GLSL: {GL.GetString(StringName.ShadingLanguageVersion)}");
+            s_glInfoPrinted = true;
+        }
 
         GL.ClearColor(0.10f, 0.20f, 0.30f, 1f);
-        ApplyDepthTest();
+        GL.FrontFace(FrontFaceDirection.Ccw); // лицевая сторона — обход против часовой стрелки (значение OpenGL по умолчанию)
+        ApplyRenderState();
         UpdateTitle();
 
         _shader = new ShaderProgram(VertexShaderSource, FragmentShaderSource);
@@ -140,7 +162,20 @@ internal sealed class SpikeWindow : GameWindow
         if (KeyboardState.IsKeyPressed(Keys.D))
         {
             _depthTest = !_depthTest;
-            ApplyDepthTest();
+            ApplyRenderState();
+            UpdateTitle();
+        }
+
+        if (KeyboardState.IsKeyPressed(Keys.C))
+        {
+            _culling = _culling == CullMode.Off ? CullMode.Back : CullMode.Off;
+            ApplyRenderState();
+            UpdateTitle();
+        }
+
+        if (KeyboardState.IsKeyPressed(Keys.T))
+        {
+            _texture = !_texture;
             UpdateTitle();
         }
 
@@ -179,12 +214,22 @@ internal sealed class SpikeWindow : GameWindow
         // Порядок рисования намеренно «неудобный»: дальние объекты после ближних.
         // С depth test картинка от порядка не зависит; без него дальний куб и плоскость закрывают ближний куб.
         var rotatingCube = Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromAxisAngle(RotationAxis, _angle));
-        DrawObject(_cube!, rotatingCube, _texturedMaterial);
+        DrawCube(rotatingCube, _texturedMaterial);
 
         var distantCube = Matrix4x4.CreateScale(0.6f) * Matrix4x4.CreateTranslation(-0.9f, 0.3f, -1.4f);
-        DrawObject(_cube!, distantCube, _tintedMaterial);
+        DrawCube(distantCube, _tintedMaterial);
 
         DrawObject(_plane!, Matrix4x4.Identity, _floorMaterial);
+
+        long frame = RenderedFrames + 1;
+        if (frame == _options.FailAtFrame)
+        {
+            Console.WriteLine($"Injecting OpenGL error on frame {frame}.");
+            GL.Enable((EnableCap)0x7FFFFFFF); // заведомо неверный enum → GL_INVALID_ENUM
+        }
+
+        // Одна проверка на кадр: ошибка обнаруживается на том кадре, где случилась, а не при закрытии окна.
+        ThrowOnGlErrors($"rendering frame {frame}");
 
         bool lastFrame = _options.FrameLimit > 0 && RenderedFrames + 1 >= _options.FrameLimit;
         if (lastFrame && _options.ScreenshotPath is not null)
@@ -205,15 +250,56 @@ internal sealed class SpikeWindow : GameWindow
 
     protected override void OnUnload()
     {
-        ThrowOnGlErrors("rendering");
+        ReleaseResources();
+        base.OnUnload();
+        ThrowOnGlErrors("releasing resources");
+    }
+
+    // Если Run прерван исключением (например, ошибкой GL в кадре), OnUnload не вызывается —
+    // тогда ресурсы освобождает Dispose окна, пока его контекст еще существует.
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            ReleaseResources();
+
+        base.Dispose(disposing);
+    }
+
+    private void ReleaseResources()
+    {
+        if (_shader is null)
+            return;
 
         _controlTexture?.Dispose();
         _plane?.Dispose();
         _cube?.Dispose();
-        _shader?.Dispose();
+        _shader.Dispose();
 
-        ThrowOnGlErrors("releasing resources");
-        base.OnUnload();
+        _controlTexture = null;
+        _plane = null;
+        _cube = null;
+        _shader = null;
+        Console.WriteLine("GPU resources released.");
+    }
+
+    // Без текстуры каждая грань рисуется своим базовым цветом (шесть вызовов по 6 индексов) —
+    // «цветной куб» получается средствами материала, без цвета в вершинах.
+    private void DrawCube(Matrix4x4 model, Material material)
+    {
+        if (_texture)
+        {
+            DrawObject(_cube!, model, material);
+            return;
+        }
+
+        ShaderProgram.SetMatrix(_modelLocation, model);
+        GL.Uniform1(_hasTextureLocation, 0);
+        for (int face = 0; face < FaceColors.Length; face++)
+        {
+            var color = FaceColors[face];
+            GL.Uniform4(_baseColorLocation, color.X, color.Y, color.Z, color.W);
+            _cube!.DrawRange(face * 6, 6);
+        }
     }
 
     private void DrawObject(GpuMesh mesh, Matrix4x4 model, Material material)
@@ -224,7 +310,7 @@ internal sealed class SpikeWindow : GameWindow
         mesh.Draw();
     }
 
-    // glGetError хранит флаги ошибок до чтения; проверка раз на этап (а не после каждого вызова) не тормозит кадр.
+    // glGetError хранит флаги ошибок до чтения, поэтому одной проверки на кадр достаточно, чтобы ничего не пропустить.
     private static void ThrowOnGlErrors(string stage)
     {
         var errors = new List<OpenTK.Graphics.OpenGL4.ErrorCode>();
@@ -235,15 +321,26 @@ internal sealed class SpikeWindow : GameWindow
             throw new InvalidOperationException($"OpenGL errors while {stage}: {string.Join(", ", errors)}");
     }
 
-    private void ApplyDepthTest()
+    private void ApplyRenderState()
     {
-        if (_depthTest)
-            GL.Enable(EnableCap.DepthTest);
-        else
-            GL.Disable(EnableCap.DepthTest);
+        SetCapability(EnableCap.DepthTest, _depthTest);
+        SetCapability(EnableCap.CullFace, _culling != CullMode.Off);
+        if (_culling != CullMode.Off)
+            GL.CullFace(_culling == CullMode.Back ? TriangleFace.Back : TriangleFace.Front);
     }
 
+    private static void SetCapability(EnableCap capability, bool enabled)
+    {
+        if (enabled)
+            GL.Enable(capability);
+        else
+            GL.Disable(capability);
+    }
+
+    private static string OnOff(bool value) => value ? "ON" : "OFF";
+
     private void UpdateTitle() =>
-        Title = $"{BaseTitle} — depth: {(_depthTest ? "ON" : "OFF")}, вращение: {(_rotationPaused ? "пауза" : "ON")}"
-            + " | ЛКМ — камера, колесо — зум, Space — пауза, D — depth, Esc — выход";
+        Title = $"{BaseTitle} — depth: {OnOff(_depthTest)}, culling: {_culling}, текстура: {OnOff(_texture)}, "
+            + $"вращение: {(_rotationPaused ? "пауза" : "ON")}"
+            + " | ЛКМ — камера, колесо — зум, Space — пауза, D — depth, C — culling, T — текстура, Esc — выход";
 }
