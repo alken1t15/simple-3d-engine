@@ -2,8 +2,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using OpenTkSpike;
 
-// Использование: dotnet run -- [--frames N] [--cycles N] [--screenshot file.png] [--depth on|off]
-// Описание параметров — в SpikeOptions.
+// Использование: dotnet run -- [параметры окна]  — описание параметров в SpikeOptions;
+//                dotnet run -- --compare a.png b.png [...] — сравнение кадров, см. ImageCompare.
+if (args.Length > 0 && args[0] == "--compare")
+    return ImageCompare.Run(args[1..]);
+
 var options = SpikeOptions.Parse(args);
 
 Console.WriteLine($".NET: {RuntimeInformation.FrameworkDescription}");
@@ -29,3 +32,4 @@ if (options.ScreenshotPath is not null)
     Console.WriteLine($"Screenshot: {Path.GetFullPath(options.ScreenshotPath)}");
 
 Console.WriteLine("Window closed without exceptions.");
+return 0;
