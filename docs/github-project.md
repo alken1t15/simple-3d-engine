@@ -6,14 +6,14 @@
 
 Он нужен как рабочая заготовка для создания issues и настройки доски. Карточки ниже основаны на `project_plan.md`, `docs/requirements.md` и `docs/development-process.md`.
 
-## 1. Рекомендуемые поля Project
+## 1. Основные поля действующего Project
 
 | Поле | Тип | Значения |
 |---|---|---|
-| Status | Single select | Todo, In Progress, Review, Done |
+| Status | Single select | Todo, In Progress, Testing, Done |
 | Priority | Single select | Critical, High, Medium, Low |
 | Area | Single select | Requirements, Architecture, Core, Rendering, Demo, Tests, Docs, Process |
-| Milestone | Single select | M1 Planning, M2 Technical Spike, M3 MVP, M4 Main Implementation, M5 Final Delivery |
+| Milestone | Системное поле, milestone связанной issue | M1 Planning, M2 Technical Spike, M3 MVP, M4 Main Implementation, M5 Final Delivery |
 
 ## 2. Labels
 
@@ -108,7 +108,7 @@
 
 #### Checklist
 
-- [ ] Проверить раздел `2.3` в `project_plan.md`.
+- [ ] Проверить раздел `2.2. Открытые вопросы` в `project_plan.md`.
 - [ ] Выделить вопросы про формат сдачи, FPS, импорт моделей, сроки и состав команды.
 - [ ] Отметить, какие решения уже приняты временно.
 - [ ] После консультации обновить `docs/requirements.md`.
@@ -194,11 +194,11 @@
 
 #### Checklist
 
-- [ ] Создать `Simple3DEngine.sln`.
-- [ ] Создать `src/Simple3DEngine.Core`.
-- [ ] Создать `src/Simple3DEngine.OpenGL`.
-- [ ] Создать `src/Simple3DEngine.Demo`.
-- [ ] Создать `tests/Simple3DEngine.Tests`.
+- [ ] Создать `Engine3D.sln`.
+- [ ] Создать `src/Engine3D.Core`.
+- [ ] Создать `src/Engine3D.OpenGL`.
+- [ ] Создать `src/Engine3D.Demo`.
+- [ ] Создать `tests/Engine3D.Tests`.
 - [ ] Добавить базовую сборку в CI.
 
 #### Acceptance criteria
@@ -501,7 +501,7 @@
 |---|---|
 | Todo | Задача согласована, но работа не началась. |
 | In Progress | У задачи есть владелец и активная ветка/PR. |
-| Review | PR открыт, нужна проверка людей и CI. |
+| Testing | PR открыт, нужна проверка людей, CI и предусмотренные задачей ручные проверки. |
 | Done | PR смержен, критерии готовности выполнены. |
 
 ## 5. Что уже можно отметить Done
