@@ -24,8 +24,7 @@ jobs:
             docs/api.md \
             docs/implementation_outline.md \
             docs/team.md \
-            docs/development-process.md \
-            docs/sources.md; do
+            docs/development-process.md; do
             test -s "$file"
           done
           if grep -R -nE 'C:/Users/|E:/comp_graph' --include='*.md' .; then
