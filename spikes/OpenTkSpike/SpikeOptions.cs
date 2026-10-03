@@ -1,10 +1,11 @@
 using System.Globalization;
+using OpenTK.Mathematics;
 
 namespace OpenTkSpike;
 
 // Параметры командной строки:
 //   dotnet run -- [--frames N] [--cycles N] [--screenshot file.png] [--depth on|off] [--cull on|off|front]
-//                 [--texture on|off] [--angle RADIANS] [--fail-at-frame N]
+//                 [--texture on|off] [--angle RADIANS] [--fail-at-frame N] [--focus on|off] [--position X,Y]
 //   --frames N         закрыть окно после N показанных кадров (для автоматических прогонов);
 //   --cycles N         N раз подряд создать, показать и закрыть окно в одном процессе (по умолчанию 1);
 //   --screenshot PATH  сохранить последний кадр перед закрытием в PNG (требует --frames);
@@ -13,7 +14,10 @@ namespace OpenTkSpike;
 //                      режим, имитирует неверный порядок обхода); в окне клавиша C переключает off/on;
 //   --texture on|off   off — грани куба окрашены базовыми цветами вместо текстуры (по умолчанию on; в окне — клавиша T);
 //   --angle RADIANS    зафиксировать угол поворота куба (вращение на паузе) — для воспроизводимых кадров;
-//   --fail-at-frame N  намеренно вызвать ошибку OpenGL на кадре N, чтобы проверить обработку ошибок.
+//   --fail-at-frame N  намеренно вызвать ошибку OpenGL на кадре N, чтобы проверить обработку ошибок;
+//   --focus on|off     on — окно забирает фокус при открытии (по умолчанию), off — оставляет его тому,
+//                      кто запустил окно: в терминале остаётся ввод, а клавиши окна оживают после клика по нему;
+//   --position X,Y     начальное положение окна в пунктах от левого верхнего угла экрана (по умолчанию — выбирает ОС).
 internal enum CullMode
 {
     Off,
@@ -29,7 +33,9 @@ internal sealed record SpikeOptions(
     CullMode Culling,
     bool Texture,
     float? Angle,
-    int FailAtFrame)
+    int FailAtFrame,
+    bool StartFocus,
+    Vector2i? Position)
 {
     public static SpikeOptions Parse(string[] args)
     {
@@ -41,6 +47,8 @@ internal sealed record SpikeOptions(
         bool texture = true;
         float? angle = null;
         int failAtFrame = 0;
+        bool startFocus = true;
+        Vector2i? position = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -81,6 +89,12 @@ internal sealed record SpikeOptions(
                 case "--fail-at-frame":
                     failAtFrame = ParsePositive(name, value);
                     break;
+                case "--focus":
+                    startFocus = ParseSwitch(name, value);
+                    break;
+                case "--position":
+                    position = ParsePosition(name, value);
+                    break;
                 default:
                     throw new ArgumentException($"Unknown argument '{name}'.");
             }
@@ -91,7 +105,7 @@ internal sealed record SpikeOptions(
         if (screenshotPath is not null && frameLimit <= 0)
             throw new ArgumentException("--screenshot requires --frames N.");
 
-        return new SpikeOptions(frameLimit, cycles, screenshotPath, depthTest, culling, texture, angle, failAtFrame);
+        return new SpikeOptions(frameLimit, cycles, screenshotPath, depthTest, culling, texture, angle, failAtFrame, startFocus, position);
     }
 
     private static int ParsePositive(string name, string value)
@@ -106,4 +120,16 @@ internal sealed record SpikeOptions(
         "off" => false,
         _ => throw new ArgumentException($"Expected 'on' or 'off' for {name}, got '{value}'."),
     };
+
+    // Окно может уехать и за левый край экрана, поэтому знаки разрешаем.
+    private static Vector2i ParsePosition(string name, string value)
+    {
+        string[] parts = value.Split(',');
+        if (parts.Length != 2
+            || !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int x)
+            || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int y))
+            throw new ArgumentException($"Expected 'X,Y' for {name}, got '{value}'.");
+
+        return new Vector2i(x, y);
+    }
 }

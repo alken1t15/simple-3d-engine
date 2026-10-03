@@ -91,11 +91,13 @@ internal sealed class SpikeWindow : GameWindow
         : base(GameWindowSettings.Default, new NativeWindowSettings
         {
             ClientSize = new OpenTK.Mathematics.Vector2i(800, 600),
+            Location = options.Position,
             Title = BaseTitle,
             API = ContextAPI.OpenGL,
             APIVersion = new Version(3, 3),
             Profile = ContextProfile.Core,
             Flags = ContextFlags.ForwardCompatible,
+            StartFocused = options.StartFocus,
         })
     {
         _options = options;
