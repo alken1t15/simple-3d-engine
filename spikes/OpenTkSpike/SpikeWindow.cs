@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -67,6 +69,7 @@ internal sealed class SpikeWindow : GameWindow
     private static bool s_glInfoPrinted; // версии GL печатаются один раз на процесс, а не в каждом цикле --cycles
 
     private readonly SpikeOptions _options;
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly OrbitCamera _camera = new(Vector3.Zero, new Vector3(2.5f, 2f, 4f));
 
     private ShaderProgram? _shader;
@@ -82,6 +85,8 @@ internal sealed class SpikeWindow : GameWindow
     private int _baseColorLocation;
     private int _hasTextureLocation;
     private float _angle;
+    private double _lastAnimationTime;
+    private ExceptionDispatchInfo? _callbackFailure;
     private bool _depthTest;
     private CullMode _culling;
     private bool _texture;
@@ -108,6 +113,9 @@ internal sealed class SpikeWindow : GameWindow
     }
 
     public long RenderedFrames { get; private set; }
+
+    // Сколько из показанных кадров нарисовано из OnRefresh (во время ресайза/перекрытия окна). Диагностика для macOS/Windows.
+    public long RefreshFrames { get; private set; }
 
     protected override void OnLoad()
     {
@@ -150,6 +158,13 @@ internal sealed class SpikeWindow : GameWindow
         _floorMaterial = new Material(new Vector4(0.55f, 0.55f, 0.55f, 1f), null);
 
         ThrowOnGlErrors("loading resources");
+        _lastAnimationTime = _clock.Elapsed.TotalSeconds;
+    }
+
+    public override void Run()
+    {
+        base.Run();
+        _callbackFailure?.Throw();
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -158,6 +173,11 @@ internal sealed class SpikeWindow : GameWindow
 
         if (KeyboardState.IsKeyDown(Keys.Escape))
             Close();
+
+        // В автоматическом прогоне (--frames) окно получает фокус, и случайные нажатия пользователя
+        // переключали бы режимы — кадры для сравнения перестали бы быть воспроизводимыми.
+        if (_options.FrameLimit > 0)
+            return;
 
         if (KeyboardState.IsKeyPressed(Keys.D))
         {
@@ -190,15 +210,47 @@ internal sealed class SpikeWindow : GameWindow
 
         if (MouseState.ScrollDelta.Y != 0f)
             _camera.Zoom(MouseState.ScrollDelta.Y);
-
-        if (!_rotationPaused)
-            _angle += (float)args.Time;
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
+        DrawFrame();
+    }
 
+    // На macOS и Windows, пока пользователь тянет край окна, система крутит свой цикл обработки событий
+    // внутри glfwPollEvents, и основной цикл кадров (OnUpdateFrame/OnRenderFrame) стоит. Перерисовку окна
+    // в это время система запрашивает через refresh callback — рисуем кадр и здесь, чтобы картинка не замирала.
+    protected override void OnRefresh()
+    {
+        base.OnRefresh();
+        if (_shader is null || _callbackFailure is not null)
+            return;
+
+        // Обработчик вызывается из нативного кода GLFW: исключение нельзя пропускать через нативные кадры.
+        // Запоминаем его, закрываем окно и бросаем заново после выхода из Run.
+        try
+        {
+            DrawFrame();
+            RefreshFrames++;
+        }
+        catch (Exception exception)
+        {
+            _callbackFailure = ExceptionDispatchInfo.Capture(exception);
+            Close();
+        }
+    }
+
+    private void DrawFrame()
+    {
+        // Угол — от реального времени, а не от шагов OnUpdateFrame: так анимация идет и в кадрах из OnRefresh.
+        double now = _clock.Elapsed.TotalSeconds;
+        if (!_rotationPaused)
+            _angle += (float)(now - _lastAnimationTime);
+        _lastAnimationTime = now;
+
+        // Viewport — каждый кадр: при ресайзе кадр из OnRefresh может прийти раньше OnFramebufferResize.
+        GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         // Соглашение System.Numerics: вектор-строка, поэтому model-матрица = scale * rotation * translation,
@@ -240,12 +292,6 @@ internal sealed class SpikeWindow : GameWindow
 
         if (lastFrame)
             Close();
-    }
-
-    protected override void OnFramebufferResize(FramebufferResizeEventArgs e)
-    {
-        base.OnFramebufferResize(e);
-        GL.Viewport(0, 0, e.Width, e.Height);
     }
 
     protected override void OnUnload()
