@@ -1,24 +1,26 @@
 # Публичный API: проект контракта P0
 
-**Статус:** проектные C# сигнатуры для планирования, 27.09.2026. Это **не реализованный код**. Имена и типы уточняются в задаче 1.3 после OpenTK spike 1.2; функциональные сценарии и правила владения должны сохраниться. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
+**Статус:** контракт для реализации, уточнен 05.10.2026 для P0-10/11 (#6/#25). Это **не реализованный код**. Результаты завершенного spike 1.2 учтены; базовые детали контракта версии 1 завершаются в #6, расширения ниже описывают нормали/свет и JSON; функциональные сценарии и правила владения должны сохраниться. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
 
 ## 1. Что должен уметь вызывающий код
 
 1. Создать окно/движок одним вызовом и получить понятную ошибку при невозможности создать контекст.
-2. Получить процедурный куб/плоскость или передать собственный индексный mesh с позицией и UV.
+2. Получить процедурный куб/плоскость или передать собственный индексный mesh с позицией, UV и нормалями.
 3. Загрузить одну растровую текстуру, создать базовый материал и добавить несколько объектов в сцену.
 4. Задать камеру и в каждом кадре менять `Transform` объекта без обращения к OpenGL.
 5. Показать сцену, запросить закрытие, получить число показанных кадров для внешнего замера, освободить графические ресурсы через `using`.
+6. Задать фоновый и один направленный рассеянный свет.
+7. Сохранить собственную сцену в JSON и восстановить ее в новую сцену с камерой и светом.
 
 Сцена не включает игровой мир: в API нет коллизий, физики, поведения объектов, переходов анимации и правил игры. `onUpdate` — callback вызывающего приложения; он меняет данные сцены, а рендерер только отображает их.
 
 ## 2. Предлагаемые типы и сигнатуры
 
-Следующий блок — **эскиз контракта**, его не нужно вставлять в проект без проверки OpenTK lifecycle, namespace и компиляции:
+Следующий блок — **эскиз контракта**, это сигнатуры для реализации, без тел методов. Их не нужно вставлять как готовый код; namespace, CPU-доступ renderer и компиляция проверяются в #6/#7:
 
 ```csharp
 // Engine3D.Core
-public readonly record struct Vertex(Vector3 Position, Vector2 Uv);
+public readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector3 Normal);
 
 public sealed class MeshData
 {
@@ -35,6 +37,9 @@ public static class PrimitiveFactory
 
 public sealed class TextureData
 {
+    public TextureData(int width, int height, ReadOnlySpan<byte> rgba, string? sourcePath = null);
+    public ReadOnlySpan<byte> Pixels { get; }
+    public string? SourcePath { get; }
     public int Width { get; }
     public int Height { get; }
     // RGBA8; данные после создания не меняются.
@@ -63,8 +68,16 @@ public sealed class SceneObject
     public Transform Transform { get; } = new();
 }
 
+public sealed class SceneLighting
+{
+    public Vector3 AmbientColor { get; set; } = new(0.2f);
+    public Vector3 DirectionalColor { get; set; } = Vector3.One;
+    public Vector3 Direction { get; set; } = new(-1f, -1f, -1f);
+}
+
 public sealed class Scene
 {
+    public SceneLighting Lighting { get; } = new();
     public IReadOnlyList<SceneObject> Objects { get; }
     public void Add(SceneObject item);
     public bool Remove(SceneObject item);
@@ -78,6 +91,14 @@ public sealed class Camera
     public float FieldOfViewDegrees { get; set; } = 60f;
     public float NearPlane { get; set; } = 0.1f;
     public float FarPlane { get; set; } = 100f;
+}
+
+public sealed record SceneSnapshot(Scene Scene, Camera Camera);
+
+public static class SceneSerializer
+{
+    public static void Save(string path, Scene scene, Camera camera);
+    public static SceneSnapshot Load(string path, Func<string, TextureData>? textureLoader = null);
 }
 
 // Engine3D.OpenGL
@@ -202,4 +223,83 @@ long frames = engine.RenderedFrames;
 
 **Выбрано в плане:** `Engine.Create` + один `Run` + `Dispose`; GPU-ресурсами владеет `Engine`; CPU-данные mesh/texture неизменяемы; `Scene` не владеет GPU; callback исполняет внешнюю логику; `RenderedFrames` дает минимальную поддержку замера.
 
-**Проверить в spike 1.2:** точное создание OpenTK `GameWindow`, возможность загрузить текстуру до `Run`, порядок callbacks и закрытия, ориентацию PNG/UV, систему координат и передачу `System.Numerics.Matrix4x4` в GLSL. Если проверка заставит изменить сигнатуру `Engine.Run` или жизненный цикл, обновить [архитектуру](architecture.md), этот API и пример демо до разделения задач между разработчиками.
+**Результаты завершенного spike 1.2:** см. [отчет](spikes.md). В #6 перенести проверенные соглашения в основной код и тесты: точное создание OpenTK `GameWindow`, возможность загрузить текстуру до `Run`, порядок callbacks и закрытия, ориентацию PNG/UV, систему координат и передачу `System.Numerics.Matrix4x4` в GLSL. Если проверка заставит изменить сигнатуру `Engine.Run` или жизненный цикл, обновить [архитектуру](architecture.md), этот API и пример демо до разделения задач между разработчиками.
+
+
+## 8. Нормали и простой свет (P0-10)
+
+Это согласованный минимальный объем команды по ответу преподавателя; отдельная анимация и frustum culling необязательны. Правила относятся к реализации, а не к уже существующему коду движка.
+
+- Normal — локальная нормаль поверхности, конечная и ненулевая. Конструктор MeshData сначала проверяет каждую нормаль на конечность и ненулевую длину (ошибка ArgumentException), затем копирует вершины и нормализует нормали в собственной неизменяемой копии. Позиции/UV конечные; вырожденные треугольники по-прежнему допускаются. Отсутствие нормали у вручную созданного mesh теперь ошибка аргумента; фабрики дают корректные нормали автоматически.
+- Cube — отдельные вершины/UV/нормали граней; plane в XZ — нормаль +Y и согласованный winding. GPU-формат Position/UV/Normal согласован между #7/#8/#9.
+- Цвета света — конечный RGB в диапазоне [0,1]. Direction — направление распространения лучей в мировых координатах, конечное и ненулевое; renderer проверяет и нормализует его перед вычислением освещения каждого кадра, в том числе после onUpdate. Нулевой цвет допустим (выключить составляющую), новой подсистемы источников не нужно.
+- Нормаль преобразуется inverse-transpose линейной части model, затем нормализуется; нельзя просто умножить на model при неравномерном масштабе. Translation не участвует. Row-vector model = scale * rotation * translation, MVP = model * view * projection; данные System.Numerics передаются GLSL transpose=false, как в ShaderProgram.SetMatrix spike. На стороне GLSL normalMatrix = transpose(inverse(mat3(u_model))); view не участвует, свет и нормаль в world space.
+- Необратимый transform (нулевой scale) отклоняется перед GL-вызовами кадра с понятной ошибкой состояния; отрицательный ненулевой scale не запрещается. Back-face culling в базовой версии можно оставить выключенным, как в текущем архитектурном контракте.
+- RGB результата = baseColor.rgb * sampledTexture.rgb * (ambient + directionalColor * max(dot(worldNormal, -normalizedDirection),0)); без texture множитель (1,1,1). Шейдер ограничивает вывод диапазоном [0,1]. Материал непрозрачный, alpha не включает blending. Тени, specular, gamma/HDR/PBR и несколько источников не добавляются.
+- Свет/transform/material менять только на потоке Run/onUpdate. После onUpdate и до любых GL-вызовов кадра невалидные изменяемые данные отклоняются с InvalidOperationException, а не передаются GL. Это дополняет существующие правила ошибок; не вводить новые exception-классы.
+
+## 9. JSON собственной сцены (P0-11, #25)
+
+Сериализация — CPU-код `Engine3D.Core`. `SceneSerializer` не зависит от `Engine`/OpenGL; клиент может передать `engine.LoadTexture` как делегат, но это не меняет граф зависимостей сборок.
+
+- Save/Load синхронные, до Run или после его возврата, на потоке вызывающего приложения без одновременного изменения сцены. Нового Run, контекста, DI-контейнера и отдельной сборки нет.
+- Конструктор TextureData требует положительные width/height и ровно width*height*4 байт RGBA8 (проверять размер без переполнения), копирует входной буфер; Pixels только для чтения, SourcePath при наличии приводится к полному пути. Неверные аргументы отклоняются ArgumentException. Это также закрывает создание CPU TextureData декодером #10 и тестовым загрузчиком без окна.
+- SourcePath неизменяем, это полный путь исходного изображения. Engine.LoadTexture задает его при декодировании. TextureData, созданная без исходного файла, может использоваться renderer, но Save текстурированного материала без SourcePath сообщает NotSupportedException. Не создавать изменяемый дубликат пути в MaterialData.
+- Фабрики хранят внутри MeshData неизменяемое описание происхождения: cube/size либо plane/width/depth. Это служебные CPU-данные Core, не новый публичный GPU API. Произвольный пользовательский mesh продолжает отображаться, но Save без описания примитива сообщает NotSupportedException; не пытаться угадать тип по геометрии.
+- Transform и camera/light проверяются также до Save: числовые поля конечны, quaternion ненулевой: нормализуется при вычислении model matrix, при сохранении и при восстановлении; scale ненулевой, position != target, up ненулевой и не параллелен взгляду, 0<FOV<180 и 0<near<far. BaseColor — конечный RGBA [0,1], непрозрачный материал рендерится без blending. Не поддерживать неизвестные kind/version; отсутствующие обязательные поля, дубли mesh id или meshId без записи дают InvalidDataException при Load.
+- Схема JSON version=1: meshes (уникальные id/kind/size либо width+depth); objects в порядке Scene.Objects (meshId, transform.position/rotation/scale, material.baseColor/texturePath); camera; lighting. Vector3/цвет — массивы чисел, Quaternion — [x,y,z,w]. Пиксели, вершины, GPU handles, delegates и состояния окна не записываются.
+- Mesh ids задаются внутри документа, не глобальные идентификаторы: по ссылочной идентичности MeshData (ReferenceEquals), не по сравнению геометрии, при Save, по id при Load один новый экземпляр mesh на запись. Материалы восстанавливаются на объект; сохранение общей идентичности материалов не требуется. Текстуры кешируются внутри одного Load по полному разрешенному пути, не на каждый объект.
+- texturePath — относительный путь от каталога JSON; Save вычисляет его из SourcePath, Load вычисляет полный путь от каталога JSON, независимо от текущего cwd. Переносить нужно JSON вместе с файлами по указанной относительной структуре. Пути с .. допустимы для собственной локальной сцены; формат не является sandbox для недоверенных сцен и не обещает переносимость Windows-путей в Linux.
+- Load сначала полностью читает и валидирует DTO version/поля/типы/id/ссылки/числа/размеры/камеру/transform/light, затем создает CPU-сцену и вызывает textureLoader для реально используемых путей. Не сериализовать напрямую System.Numerics или граф доменных объектов; использовать простой внутренний DTO + System.Text.Json без новых пакетов.
+- Для текстурированной сцены loader обязателен; null дает InvalidOperationException сразу после валидации DTO и до создания сцены/материалов или вызова любых загрузчиков. Core не вызывает Engine/OpenGL. Делегат получает полный путь; возвращает ненулевую TextureData с SourcePath, соответствующим этому полному пути, чтобы следующая Save работала; нарушение этого контракта дает InvalidOperationException. Engine.LoadTexture удовлетворяет контракту. Абсолютный SourcePath не записывается в JSON, а вычисляется заново при загрузке; ошибка загрузчика сохраняется с исходной причиной, итоговая SceneSnapshot не возвращается. Существующая сцена не изменяется; временные CPU-данные можно собрать GC. Нет обещания откатить побочные эффекты пользовательского делегата.
+- Чтение файла/доступ — стандартные IOException/UnauthorizedAccessException. Неверный JSON или неподдерживаемая version/невалидные данные документа — InvalidDataException с путем и причиной (JsonException как InnerException при синтаксической ошибке). Неподдерживаемое описание/mesh при Save — NotSupportedException. Неверные аргументы Save/Load — ArgumentException (null — ArgumentNullException).
+- Save сначала валидирует сцену и строит полный JSON в памяти, затем пишет файл. Если невалидна сцена — файл не изменяется. Отказ записи сообщает стандартную ошибку I/O; атомарное восстановление старого файла при I/O-отказе не обещается в P0. Такую гарантию нельзя добавлять в тесты.
+
+### Схема version=1
+
+```json
+{
+  "version": 1,
+  "meshes": [{ "id": "m0", "kind": "cube", "size": 1.0 }],
+  "objects": [
+    {
+      "meshId": "m0",
+      "transform": { "position": [0,0,0], "rotation": [0,0,0,1], "scale": [1,1,1] },
+      "material": { "baseColor": [1,1,1,1], "texturePath": "../Assets/checker.png" }
+    },
+    {
+      "meshId": "m0",
+      "transform": { "position": [2,0,0], "rotation": [0,0,0,1], "scale": [1,1,1] },
+      "material": { "baseColor": [1,0.5,0.5,1], "texturePath": null }
+    }
+  ],
+  "camera": { "position": [3,2,5], "target": [0,0,0], "up": [0,1,0], "fovDegrees": 60, "nearPlane": 0.1, "farPlane": 100 },
+  "lighting": { "ambientColor": [0.2,0.2,0.2], "directionalColor": [1,1,1], "direction": [-1,-1,-1] }
+}
+```
+
+Для plane запись mesh имеет id/kind="plane"/width/depth вместо size. Все названные поля обязательны, texturePath может быть null. Размеры примитива положительные конечные; пустой список объектов допустим, но не заменяет демонстрацию P0-02. Общий m0 восстанавливается единожды и разделяется двумя объектами. При Load пути относятся к каталогу JSON; для Linux сравнение текстурных путей регистрозависимое. Unknown дополнительные свойства можно игнорировать, но версия, обязательные данные и ссылки валидируются. Save пишет только schema1, совместимость с неизвестными версиями не обещается.
+
+## 10. Сценарии C/D и проверки
+
+```csharp
+using var engine = Engine.Create(new EngineOptions());
+var mesh = PrimitiveFactory.CreateCube();
+var scene = new Scene();
+scene.Add(new SceneObject(mesh, new MaterialData()));
+var camera = new Camera { Position = new Vector3(3f, 2f, 5f), Target = Vector3.Zero };
+scene.Lighting.Direction = new Vector3(-1f, -1f, -1f);
+
+Directory.CreateDirectory("Scenes"); // подготовка каталога — вызывающее приложение
+SceneSerializer.Save("Scenes/demo.json", scene, camera);
+var loaded = SceneSerializer.Load("Scenes/demo.json", engine.LoadTexture);
+engine.Run(loaded.Scene, loaded.Camera, dt =>
+{
+    // Смена направления для C; D также проверить при фиксированном направлении.
+    loaded.Scene.Lighting.Direction = new Vector3(-1f, -1f, -0.5f);
+});
+```
+
+Эскиз показывает публичный путь, не реализованную функцию. Для проверки D выбрать статическую сцену с cube/plane, двумя объектами на общем mesh и текстурой; после загрузки сравнить transform, материалы/пути, камеру и свет. В C смена направления меняет яркость граней при корректных UV/depth.
+
+CPU-тесты #12 проверяют нормали примитивов и их преобразование при неравномерном масштабе, round-trip в новую сцену, общую ссылку mesh, пути относительно JSON и кеширование декодирования внутри Load. Текстурный loader в CPU-тесте возвращает `new TextureData(...)`, без Engine. Битые ссылки, версия/kind, отсутствующие поля, невалидные camera/quaternion/light/scale, unsupported mesh/texture без SourcePath, null/ошибка loader имеют отдельные проверки. Численные допуски обосновать в тестах; побайтовое равенство GPU-кадров не обещается. Визуальная приемка C/D — #11/#13, финальный FPS со светом после загрузки и прогрева — #14.
