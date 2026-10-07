@@ -1,6 +1,6 @@
-# Публичный API: проект контракта P0
+# Публичный API — контракт версии 1
 
-**Статус:** контракт для реализации, уточнен 05.10.2026 для P0-10/11 (#6/#25). Это **не реализованный код**. Результаты завершенного spike 1.2 учтены; базовые детали контракта версии 1 завершаются в #6, контракты расширений ниже (нормали/свет и JSON) приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26); функциональные сценарии и правила владения должны сохраниться. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
+**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. Это **не реализованный код**. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
 
 ## 1. Что должен уметь вызывающий код
 
@@ -14,9 +14,9 @@
 
 Сцена не включает игровой мир: в API нет коллизий, физики, поведения объектов, переходов анимации и правил игры. `onUpdate` — callback вызывающего приложения; он меняет данные сцены, а рендерер только отображает их.
 
-## 2. Предлагаемые типы и сигнатуры
+## 2. Типы и сигнатуры версии 1
 
-Следующий блок — **эскиз контракта**, это сигнатуры для реализации, без тел методов. Их не нужно вставлять как готовый код; namespace, CPU-доступ renderer и компиляция проверяются в #6/#7:
+Следующий блок — справочник сигнатур, без тел методов; это не готовый файл реализации. Канонические пространства имен — Engine3D.Core и Engine3D.OpenGL; математика — System.Numerics. CPU-доступ renderer и клиентские примеры проверяются в #6, реальные функции — в последующих задачах:
 
 ```csharp
 // Engine3D.Core
@@ -25,6 +25,9 @@ public readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector3 Norma
 public sealed class MeshData
 {
     public MeshData(IReadOnlyList<Vertex> vertices, IReadOnlyList<uint> indices);
+    public ReadOnlySpan<Vertex> Vertices { get; }
+    public ReadOnlySpan<uint> Indices { get; }
+    public int IndexCount { get; }
     public int VertexCount { get; }
     public int TriangleCount { get; }
 }
@@ -58,6 +61,7 @@ public sealed class Transform
     public Vector3 Position { get; set; }
     public Quaternion Rotation { get; set; } = Quaternion.Identity;
     public Vector3 Scale { get; set; } = Vector3.One;
+    public Matrix4x4 GetModelMatrix();
 }
 
 public sealed class SceneObject
@@ -86,11 +90,13 @@ public sealed class Scene
 public sealed class Camera
 {
     public Vector3 Position { get; set; }
-    public Vector3 Target { get; set; }
+    public Vector3 Target { get; set; } = -Vector3.UnitZ;
     public Vector3 Up { get; set; } = Vector3.UnitY;
     public float FieldOfViewDegrees { get; set; } = 60f;
     public float NearPlane { get; set; } = 0.1f;
     public float FarPlane { get; set; } = 100f;
+    public Matrix4x4 GetViewMatrix();
+    public Matrix4x4 GetProjectionMatrix(float aspectRatio);
 }
 
 public sealed record SceneSnapshot(Scene Scene, Camera Camera);
@@ -130,7 +136,7 @@ public sealed class Engine : IDisposable
 | Действие | Правило |
 |---|---|
 | `Engine.Create` | Создает готовый графический контекст. Отдельного `Initialize` нет. При ошибке не возвращает частично созданный объект. |
-| `LoadTexture` | Для P0 вызывается после `Create` и до `Run`; декодирует изображение в CPU-данные. Выбор декодера — часть spike/реализации. |
+| `LoadTexture` | Для P0 вызывается после `Create` и до `Run`; декодирует изображение в CPU-данные. Для P0 выбран PNG и декодер StbImageSharp; реализация — в #10. |
 | `Run` | Блокирует вызывающий поток до закрытия окна или `RequestClose`; обрабатывает события, вызывает `onUpdate`, рендерит и показывает кадры. Для P0 один `Run` на один `Engine`. |
 | `RenderedFrames` | Обнуляется перед `Run`, увеличивается после показанного кадра и доступен после возврата `Run`. Не равен числу вызовов `onUpdate`. |
 | `RequestClose` | Просит завершить цикл при ближайшей обработке события; не освобождает ресурсы немедленно. |
@@ -140,9 +146,13 @@ public sealed class Engine : IDisposable
 
 ## 4. Сценарий A — текстурированный куб
 
-Эскиз использования. Имена в коде окончательно проверить при задаче 1.3; смысл вызовов не зависит от конкретного названия декодера изображения.
+Пример использования контракта v1; функции движка в каркасе пока не реализованы.
 
 ```csharp
+using Engine3D.Core;
+using Engine3D.OpenGL;
+using System.Numerics;
+
 using var engine = Engine.Create(new EngineOptions { Width = 1280, Height = 720 });
 
 var cubeMesh = PrimitiveFactory.CreateCube();
@@ -177,6 +187,11 @@ engine.Run(scene, camera, deltaSeconds =>
 ## 5. Сценарий B — много объектов и замер
 
 ```csharp
+using Engine3D.Core;
+using Engine3D.OpenGL;
+using System.Diagnostics;
+using System.Numerics;
+
 using var engine = Engine.Create(new EngineOptions { VSync = false });
 var sharedMesh = PrimitiveFactory.CreateCube();
 var sharedMaterial = new MaterialData();
@@ -185,23 +200,44 @@ var scene = new Scene();
 for (int i = 0; i < 1000; i++)
 {
     var item = new SceneObject(sharedMesh, sharedMaterial);
-    item.Transform.Position = PositionForGridIndex(i); // функция демо, не движка
+    item.Transform.Position = new((i % 10) * 2f, ((i / 10) % 10) * 2f, (i / 100) * 2f);
     scene.Add(item);
 }
 
-var camera = CreateStressCamera(); // функция демо, не движка
-var timer = Stopwatch.StartNew();
+var camera = new Camera { Position = new(35f, 30f, 40f), Target = new(9f, 9f, 9f), FarPlane = 200f };
+var timer = new Stopwatch();
+long startFrames = 0;
+TimeSpan? startTime = null;
 engine.Run(scene, camera, deltaSeconds =>
 {
-    if (timer.Elapsed >= TimeSpan.FromSeconds(70))
+    if (!timer.IsRunning) timer.Start();
+    if (startTime is null && timer.Elapsed >= TimeSpan.FromSeconds(10))
+    {
+        startFrames = engine.RenderedFrames;
+        startTime = timer.Elapsed;
+    }
+    if (startTime is { } start && timer.Elapsed - start >= TimeSpan.FromSeconds(60))
         engine.RequestClose();
 });
-
-long frames = engine.RenderedFrames;
-// Демо сохраняет frames, длительность, число объектов, VSync и параметры ПК.
+timer.Stop();
+if (startTime is { } measuredFrom)
+{
+    double seconds = (timer.Elapsed - measuredFrom).TotalSeconds;
+    if (seconds > 0)
+    {
+        double fps = (engine.RenderedFrames - startFrames) / seconds;
+        string status = seconds >= 60 ? "полный замер" : "неполный замер";
+        Console.WriteLine($"{fps:F2} FPS over {seconds:F2} seconds ({status})");
+    }
+    else
+        Console.WriteLine("Замер отменён: нет измеренного интервала.");
+}
+else
+    Console.WriteLine("Замер отменён: окно закрыто до окончания прогрева.");
+// Демо сохраняет число объектов/треугольников, разрешение, VSync и характеристики CPU/GPU в протоколе.
 ```
 
-В нагрузочном протоколе первые 10 секунд — прогрев, следующие 60 секунд — замер. Чтобы считать **только кадры периода замера**, демо запоминает `RenderedFrames` после прогрева и вычитает из финального значения. Измерять количество `onUpdate` вместо показанных кадров нельзя. Для подробного анализа просадок демо позднее может записывать покадровые timestamps; публичная система профилирования в P0 не требуется.
+В нагрузочном протоколе первые 10 секунд — прогрев, следующие 60 секунд — замер. Размер окна во время замера не менять. При досрочном закрытии результат отмечается как неполный и не заменяет полный 60-секундный замер; закрытие до конца прогрева отменяет замер. Чтобы считать **только кадры периода замера**, демо запоминает `RenderedFrames` после прогрева и вычитает из финального значения. Измерять количество `onUpdate` вместо показанных кадров нельзя. Для подробного анализа просадок демо позднее может записывать покадровые timestamps; публичная система профилирования в P0 не требуется.
 
 **Проверка:** 1000 объектов используют одну ссылку `MeshData` и одну ссылку `MaterialData`; внутренний GPU mesh создается один раз; приложение может закрыть окно автоматически после измерения; результат сопровождается сведениями о стенде. Это покрывает P0-02, P0-07, P0-08.
 
@@ -219,12 +255,54 @@ long frames = engine.RenderedFrames;
 
 Семейство `EngineException`, `TryLoadTexture`, пользовательский logger и другие расширения **не требуются P0**. Ошибки должны быть понятными и проверяемыми, но не создают отдельной большой подсистемы.
 
-## 7. Решения и технические проверки
+## 7. Базовые решения версии 1 по результатам spike
 
-**Выбрано в плане:** `Engine.Create` + один `Run` + `Dispose`; GPU-ресурсами владеет `Engine`; CPU-данные mesh/texture неизменяемы; `Scene` не владеет GPU; callback исполняет внешнюю логику; `RenderedFrames` дает минимальную поддержку замера.
+### Границы реализации и CPU-доступ renderer
 
-**Результаты завершенного spike 1.2:** см. [отчет](spikes.md). В #6 перенести проверенные соглашения в основной код и тесты: точное создание OpenTK `GameWindow`, возможность загрузить текстуру до `Run`, порядок callbacks и закрытия, ориентацию PNG/UV, систему координат и передачу `System.Numerics.Matrix4x4` в GLSL. Если проверка заставит изменить сигнатуру `Engine.Run` или жизненный цикл, обновить [архитектуру](architecture.md), этот API и пример демо до разделения задач между разработчиками.
+| Issue | Ответственность |
+|---|---|
+| #6 | Четыре проекта net10.0, CI и базовый контракт v1; расширения PR #26 сохранены. |
+| #7 | CPU Vertex/MeshData, ColorRgba/MaterialData/TextureData, Scene/SceneObject/Transform/Camera и SceneLighting. Только стандартная .NET. |
+| #8 | Фабрики cube/plane, UV/нормали, внутреннее описание происхождения примитива для Save. |
+| #9 | Engine/EngineOptions, окно/цикл, GPU mesh-кэш, renderer/depth и свет. |
+| #10 | Engine.LoadTexture, PNG-декодирование StbImageSharp, GPU texture-кэш. CPU-типы не дублируются. |
+| #25 | SceneSerializer/SceneSnapshot и внутренние DTO System.Text.Json внутри Core; не новый проект и не второй декодер. |
+| #11 / #12 / #13 | Demo A–D, CPU-тесты и ручная графическая приемка. |
 
+MeshData копирует вершины/индексы, TextureData копирует входной rgba; Vertices/Indices/Pixels — ReadOnlySpan поверх собственных приватных массивов. Renderer получает span только на время upload, не хранит его между кадрами и не получает изменяемый массив. Изменение исходных массивов не меняет CPU-данные. Индексы uint32; IndexCount = Indices.Length, TriangleCount = IndexCount / 3. null vertices/indices — ArgumentNullException. Пустые vertices/indices, число индексов не кратное трем или индекс вне диапазона — ArgumentException до GPU; позиции/UV/нормали проверяются по разделу 8. Вырожденные треугольники допустимы. PrimitiveFactory требует положительные конечные size/width/depth; неверный размер — ArgumentOutOfRangeException.
+
+Scene.Objects — живая readonly-коллекция в порядке добавления. Add/Remove(null) — ArgumentNullException; повторное Add той же ссылки — ArgumentException; Remove отсутствующего объекта возвращает false. SceneObject требует ненулевые Mesh/Material; setter Material не допускает null. Scene.Remove не инвалидирует общий mesh/texture и не освобождает GPU.
+
+### Матрицы, координаты и UV
+
+Основание — [принятые соглашения spike](spikes.md#принятые-соглашения). Правая система координат, Y вверх, камера в пространстве вида смотрит вдоль -Z; UV (0,0) снизу слева. Cube центрирован в начале координат, 24 вершины/36 индексов; plane лежит в XZ, нормаль +Y. CCW при взгляде снаружи; правила отрицательного Scale и нормалей — в разделе 8.
+
+Core использует вектор-строку и вычисляет:
+
+```text
+Transform.GetModelMatrix(): Scale * Rotation(normalized quaternion) * Translation
+Camera.GetViewMatrix(): Matrix4x4.CreateLookAt(Position, Target, Up)
+Camera.GetProjectionMatrix(aspect): CreatePerspectiveFieldOfView(fovRadians, aspect, near, far)
+combinedCore = model * view * projection
+```
+
+Core-проекция имеет NDC depth [0,1]. Только OpenGL-слой добавляет справа коррекцию: C = Identity, C.M33 = 2, C.M43 = -1; projectionGL = projection * C, то есть z' = 2z - w и NDC depth [-1,1]. Не применять ее дважды. Построчные поля M11..M44 передаются с transpose=false; shader видит транспонированную матрицу и использует `projection * view * model * vec4(position,1)`. NormalMatrix и отрицательный масштаб определены принятым разделом 8.
+
+CPU RGBA8-строки идут сверху вниз. LoadTexture до Run только декодирует PNG, копирует RGBA8 и задает полный SourcePath; GPU upload выполняется лениво по идентичности TextureData и переворачивает строки ровно один раз. Это уточняет проверенный spike, где upload был в OnLoad; декодирование до Run не требует GPU. Размеры/буфер/SourcePath сохраняют контракт раздела 9.
+
+### Состояния Engine, callbacks и ошибки
+
+- Engine.Create проверяет options, положительные Width/Height и непустой Title; создает контекст OpenGL 3.3 core на вызывающем потоке. Ошибка аргумента — ArgumentException (null — ArgumentNullException); ошибка создания — InvalidOperationException с причиной/InnerException, без частично живого Engine. Частичные ресурсы освобождаются.
+- Только поток Create может вызывать методы Engine; другой поток — InvalidOperationException. После Dispose — ObjectDisposedException, кроме повторного Dispose и чтения RenderedFrames. Нужен новый Engine для повторного показа.
+- LoadTexture допускается после Create и до начала Run; позже — InvalidOperationException. Пустой path — ArgumentException, отсутствие файла — FileNotFoundException, доступ — UnauthorizedAccessException, прочие I/O — IOException, испорченный/неподдерживаемый PNG — InvalidDataException с путем и причиной. PNG обязательна, остальные форматы вне гарантии P0.
+- Один блокирующий Run(scene,camera,onUpdate) на Engine. Второй Run — InvalidOperationException; null scene/camera — ArgumentNullException. Порядок: события → onUpdate → полная CPU-валидация изменяемого состояния → render → успешный swap → счетчик. deltaSeconds конечное неотрицательное реальное время между updates; первый callback получает 0.
+- Refresh может перерисовать последнее состояние без onUpdate; следующий обычный update учитывает прошедшее время. Viewport/aspect используют FramebufferSize, а не логический размер окна. При нулевом framebuffer пропустить render/swap/счетчик. RenderedFrames начинается с 0, сбрасывается перед Run и включает каждый успешный swap, в том числе refresh, а не callback-вызовы.
+- RequestClose во время Run запрашивает закрытие при ближайшей обработке событий; из onUpdate новый обычный кадр уже не показывается. Повтор безопасен. До Run — InvalidOperationException; после завершенного Run — no-op до Dispose.
+- Активное закрытие из callback выполняется RequestClose. Dispose вызывается после возврата/исключения Run; внутри onUpdate — InvalidOperationException. Dispose идемпотентен, удаляет кэши/shaders до уничтожения контекста/окна. Ошибка одного удаления не отменяет попытки остальных.
+- Невалидное изменяемое состояние после onUpdate и перед GL — InvalidOperationException по разделу 8. GetModelMatrix/GetViewMatrix/GetProjectionMatrix также сообщают InvalidOperationException при неверном состоянии Transform/Camera; неверный аргумент aspectRatio — ArgumentOutOfRangeException. Quaternion конечный/ненулевой нормализуется при вычислении, Scale конечный/ненулевой по всем осям; отрицательный Scale сохраняется. Camera требует конечные данные, ненулевой Up не параллельный взгляду, Position != Target, 0 < FOV < 180 и 0 < near < far; aspect конечный > 0.
+- Ошибки GL проверяются минимум раз на кадр и при загрузке ресурсов; InvalidOperationException содержит операцию/код. Исключение onUpdate сохраняется исходным; using освобождает ресурсы. Исключения native refresh/resize/input перехватываются, закрывают окно и повторно выбрасываются после native loop, не выходят через GLFW. Ошибка очистки не заменяет первоначальную ошибку Run.
+
+Единственный владелец GPU — Engine. Кэши по идентичности CPU-объекта живут до Dispose; CPU-объекты не IDisposable. Demo перехватывает исключение на верхнем уровне, пишет причину в stderr и завершает процесс с кодом 1. Собственные exception-классы, backend/DI-контейнер и публичный profiler не добавляются. Ограничения Wayland/macOS/Windows/HiDPI из spike сохраняются, их проверка этим контрактом не объявляется.
 
 ## 8. Нормали и простой свет (P0-10)
 
