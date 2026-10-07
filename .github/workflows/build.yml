@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore dependencies
+        run: dotnet restore Engine3D.sln
+      - name: Build solution
+        run: dotnet build Engine3D.sln --configuration Release --no-restore
+      - name: Run tests without a graphics context
+        run: dotnet test Engine3D.sln --configuration Release --no-build
