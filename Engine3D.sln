@@ -1,0 +1,49 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{29FD4491-D876-4959-A47E-F4198AD7AD89}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine3D.Core", "src\Engine3D.Core\Engine3D.Core.csproj", "{B23EAA21-6A92-48BB-A33E-292CF43FB241}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine3D.OpenGL", "src\Engine3D.OpenGL\Engine3D.OpenGL.csproj", "{57752E68-2567-4100-8938-72928DA60CCE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine3D.Demo", "src\Engine3D.Demo\Engine3D.Demo.csproj", "{A28CF419-301A-4B45-A989-AAEB0ECDA82E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F3B1B0B6-38DF-4325-9B3A-ED89C6FDE50C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine3D.Tests", "tests\Engine3D.Tests\Engine3D.Tests.csproj", "{91254D8E-32A3-4ECD-8965-993FB80F5332}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B23EAA21-6A92-48BB-A33E-292CF43FB241}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B23EAA21-6A92-48BB-A33E-292CF43FB241}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B23EAA21-6A92-48BB-A33E-292CF43FB241}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B23EAA21-6A92-48BB-A33E-292CF43FB241}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57752E68-2567-4100-8938-72928DA60CCE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57752E68-2567-4100-8938-72928DA60CCE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57752E68-2567-4100-8938-72928DA60CCE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57752E68-2567-4100-8938-72928DA60CCE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A28CF419-301A-4B45-A989-AAEB0ECDA82E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A28CF419-301A-4B45-A989-AAEB0ECDA82E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A28CF419-301A-4B45-A989-AAEB0ECDA82E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A28CF419-301A-4B45-A989-AAEB0ECDA82E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91254D8E-32A3-4ECD-8965-993FB80F5332}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91254D8E-32A3-4ECD-8965-993FB80F5332}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91254D8E-32A3-4ECD-8965-993FB80F5332}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91254D8E-32A3-4ECD-8965-993FB80F5332}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B23EAA21-6A92-48BB-A33E-292CF43FB241} = {29FD4491-D876-4959-A47E-F4198AD7AD89}
+		{57752E68-2567-4100-8938-72928DA60CCE} = {29FD4491-D876-4959-A47E-F4198AD7AD89}
+		{A28CF419-301A-4B45-A989-AAEB0ECDA82E} = {29FD4491-D876-4959-A47E-F4198AD7AD89}
+		{91254D8E-32A3-4ECD-8965-993FB80F5332} = {F3B1B0B6-38DF-4325-9B3A-ED89C6FDE50C}
+	EndGlobalSection
+EndGlobal
