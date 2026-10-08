@@ -1,0 +1,52 @@
+name: Сообщение об ошибке
+description: Воспроизводимая ошибка сборки, запуска или работы проекта
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Версия кода
+      description: Укажите commit или ветку, на которой воспроизводится ошибка.
+      placeholder: "Например: main, commit 08fab75"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Окружение
+      description: Укажите ОС и версию .NET SDK. Для графических ошибок добавьте GPU, драйвер и версию OpenGL; для WSL — дистрибутив и оконную систему, если они известны.
+      placeholder: "ОС и версия; результат dotnet --version; дополнительные сведения для графических ошибок"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Как воспроизвести
+      description: Укажите проект или компонент (например, Core, Demo или OpenTK spike), команду запуска и точные шаги. По возможности приложите минимальный пример кода или сцену.
+      placeholder: |
+        1. Команда сборки или запуска:
+        2. Действия:
+        3. Когда возникает ошибка:
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый результат
+      description: Какой результат вы ожидали получить?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактический результат
+      description: Что произошло? Укажите текст ошибки, сбой или отличия от ожидаемого результата.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Логи и изображения
+      description: При необходимости приложите вывод программы, stack trace, скриншот или запись экрана.
+    validations:
+      required: false
