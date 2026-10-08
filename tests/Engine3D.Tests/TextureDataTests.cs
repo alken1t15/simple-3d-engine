@@ -53,10 +53,11 @@ public sealed class TextureDataTests
     [TestMethod]
     public void Huge_size_is_rejected_without_overflow()
     {
-        // int.MaxValue * int.MaxValue * 4 не помещается в int: размер сравнивается в long.
+        // Регрессия ревью #7: int.MaxValue * int.MaxValue * 4 = 2^64 − 2^34 + 4 не помещается в long,
+        // раньше в сообщении было отрицательное число байт.
         var exception = Assert.ThrowsExactly<ArgumentException>(() => new TextureData(int.MaxValue, int.MaxValue, new byte[4]));
 
-        Assert.Contains("Expected", exception.Message);
+        Assert.Contains("Expected 18446744056529682436 bytes", exception.Message);
     }
 
     [TestMethod]

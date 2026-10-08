@@ -7,7 +7,7 @@ namespace Engine3D.Core;
 /// </summary>
 public sealed class TextureData
 {
-    private const int BytesPerPixel = 4;
+    private const ulong BytesPerPixel = 4;
 
     private readonly byte[] _pixels;
 
@@ -20,9 +20,9 @@ public sealed class TextureData
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
 
-        // long: width*height*4 для больших размеров не помещается в int.
-        long expectedLength = (long)width * height * BytesPerPixel;
-        if (rgba.Length != expectedLength)
+        // ulong: при width = height = int.MaxValue произведение 2^64 − 2^34 + 4 не помещается ни в int, ни в long.
+        ulong expectedLength = (ulong)width * (ulong)height * BytesPerPixel;
+        if ((ulong)rgba.Length != expectedLength)
         {
             throw new ArgumentException(
                 $"Expected {expectedLength} bytes of RGBA8 data for a {width}x{height} texture, got {rgba.Length}.",
