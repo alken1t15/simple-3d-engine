@@ -3,6 +3,7 @@ name: Build
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,4 +22,11 @@ jobs:
       - name: Build solution
         run: dotnet build Engine3D.sln --configuration Release --no-restore
       - name: Run tests without a graphics context
-        run: dotnet test Engine3D.sln --configuration Release --no-build
+        run: dotnet test Engine3D.sln --configuration Release --no-build --logger "trx;LogFileName=core-tests.trx" --results-directory artifacts/core-tests
+      - name: Upload CPU test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: core-test-results
+          path: artifacts/core-tests/*.trx
+          if-no-files-found: warn

@@ -5,10 +5,13 @@ on:
     paths:
       - 'spikes/**'
       - '.github/workflows/spikes.yml'
+      - 'global.json'
   pull_request:
     paths:
       - 'spikes/**'
       - '.github/workflows/spikes.yml'
+      - 'global.json'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,12 +29,21 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Build and test OpenTK spike
-        run: dotnet test spikes/OpenTkSpike.Tests --configuration Release
+        run: dotnet test spikes/OpenTkSpike.Tests --configuration Release --logger "trx;LogFileName=spike-tests.trx" --results-directory artifacts/spike-tests
+
+      - name: Upload spike test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spike-test-results
+          path: artifacts/spike-tests/*.trx
+          if-no-files-found: warn
 
   opentk-spike-smoke:
+    timeout-minutes: 15
     # Запускает окно spike на виртуальном дисплее (Xvfb) с программным OpenGL Mesa (llvmpipe):
     # повторные открытия/закрытия, обнаружение ошибки OpenGL, проверка culling, контрольные кадры.
     # Это проверка поведения, а не производительности; картинку на реальном GPU проверяют вручную (docs/spikes.md).
@@ -43,7 +55,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Install virtual display and software OpenGL
         run: |
@@ -53,6 +65,7 @@ jobs:
             libx11-6 libxcursor1 libxext6 libxi6 libxinerama1 libxrandr2
 
       - name: Smoke test in virtual display
+        timeout-minutes: 5
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' bash spikes/OpenTkSpike/smoke-test.sh artifacts/spike-smoke
 
       - name: Upload smoke test logs and frames
