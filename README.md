@@ -1,6 +1,18 @@
 # Simple 3D Engine
 
+[![Build](https://github.com/alken1t15/simple-3d-engine/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/alken1t15/simple-3d-engine/actions/workflows/build.yml)
+[![Documentation](https://github.com/alken1t15/simple-3d-engine/actions/workflows/documentation.yml/badge.svg?branch=main)](https://github.com/alken1t15/simple-3d-engine/actions/workflows/documentation.yml)
+[![Spikes](https://github.com/alken1t15/simple-3d-engine/actions/workflows/spikes.yml/badge.svg?branch=main)](https://github.com/alken1t15/simple-3d-engine/actions/workflows/spikes.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)](global.json)
+
 Учебный проект: небольшой **3D-графический движок на C#** с публичным API. Создан C# solution со сборкой в CI, реализованы CPU-модели сцены в `Engine3D.Core` (#7) с тестами. Требования, архитектура и порядок разработки описаны; рендер, примитивы, текстуры и сохранение сцены еще не реализованы.
+
+[Доска задач](https://github.com/users/alken1t15/projects/1) · [План разработки](project_plan.md) · [Правила участия](CONTRIBUTING.md)
+
+![Эксперимент OpenTK: текстурированные кубы и плоскость](docs/spikes/opentk-texture-rotated.png)
+
+*Скриншот отдельного [эксперимента OpenTK (spike #5)](docs/spikes.md): проверка текстуры и отрисовки сцены. Код эксперимента находится в `spikes/`; это не демонстрация готового движка.*
 
 ## Структура solution
 
