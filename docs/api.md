@@ -1,6 +1,6 @@
 # Публичный API — контракт версии 1
 
-**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. Это **не реализованный код**. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
+**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. CPU-типы `Engine3D.Core` из раздела 2 реализованы в #7, кроме `PrimitiveFactory` (#8) и `SceneSerializer`/`SceneSnapshot` (#25); остальное — контракт для реализации. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
 
 ## 1. Что должен уметь вызывающий код
 
@@ -54,6 +54,7 @@ public sealed class MaterialData
 {
     public ColorRgba BaseColor { get; set; } = new(1f, 1f, 1f, 1f);
     public TextureData? Texture { get; set; }
+    public void Validate();
 }
 
 public sealed class Transform
@@ -62,6 +63,7 @@ public sealed class Transform
     public Quaternion Rotation { get; set; } = Quaternion.Identity;
     public Vector3 Scale { get; set; } = Vector3.One;
     public Matrix4x4 GetModelMatrix();
+    public void Validate();
 }
 
 public sealed class SceneObject
@@ -77,6 +79,8 @@ public sealed class SceneLighting
     public Vector3 AmbientColor { get; set; } = new(0.2f);
     public Vector3 DirectionalColor { get; set; } = Vector3.One;
     public Vector3 Direction { get; set; } = new(-1f, -1f, -1f);
+    public Vector3 GetNormalizedDirection();
+    public void Validate();
 }
 
 public sealed class Scene
@@ -97,6 +101,7 @@ public sealed class Camera
     public float FarPlane { get; set; } = 100f;
     public Matrix4x4 GetViewMatrix();
     public Matrix4x4 GetProjectionMatrix(float aspectRatio);
+    public void Validate();
 }
 
 public sealed record SceneSnapshot(Scene Scene, Camera Camera);
@@ -300,6 +305,8 @@ CPU RGBA8-строки идут сверху вниз. LoadTexture до Run то
 - RequestClose во время Run запрашивает закрытие при ближайшей обработке событий; из onUpdate новый обычный кадр уже не показывается. Повтор безопасен. До Run — InvalidOperationException; после завершенного Run — no-op до Dispose.
 - Активное закрытие из callback выполняется RequestClose. Dispose вызывается после возврата/исключения Run; внутри onUpdate — InvalidOperationException. Dispose идемпотентен, удаляет кэши/shaders до уничтожения контекста/окна. Ошибка одного удаления не отменяет попытки остальных.
 - Невалидное изменяемое состояние после onUpdate и перед GL — InvalidOperationException по разделу 8. GetModelMatrix/GetViewMatrix/GetProjectionMatrix также сообщают InvalidOperationException при неверном состоянии Transform/Camera; неверный аргумент aspectRatio — ArgumentOutOfRangeException. Quaternion конечный/ненулевой нормализуется при вычислении, Scale конечный/ненулевой по всем осям; отрицательный Scale сохраняется. Camera требует конечные данные, ненулевой Up не параллельный взгляду, Position != Target, 0 < FOV < 180 и 0 < near < far; aspect конечный > 0.
+- Проверки изменяемого состояния сосредоточены в Core (#7): `Transform.Validate()`, `Camera.Validate()`, `MaterialData.Validate()` и `SceneLighting.Validate()` проверяют текущие значения по разделам 7–9 и сообщают InvalidOperationException; `SceneLighting.GetNormalizedDirection()` проверяет свет и возвращает единичное направление. Присваивание свойств значений не проверяет, поэтому в onUpdate их можно менять в любом порядке (например, NearPlane и FarPlane). Renderer (#9) вызывает эти методы после onUpdate до GL-вызовов кадра, SceneSerializer (#25) — перед Save; правила проверки не дублируются.
+- `Validate()` выполняет те же вычисления, что и матричные методы, поэтому успешная проверка гарантирует конечный результат: `Camera.GetViewMatrix()` и `Transform.GetModelMatrix()` — всегда, `Camera.GetProjectionMatrix(aspect)` — для любого aspectRatio, при котором масштаб по ширине представим (иначе ArgumentOutOfRangeException). Матрица вида строится из устойчиво нормализованных направлений: длина Up и расстояние до Target на ориентацию не влияют, а разность Target − Position, переполняющая float, вычисляется без переполнения. Непредставимые результаты — сдвиг вида при слишком далекой Position, масштаб проекции при слишком малом угле обзора, коэффициент глубины при слишком близких near/far — дают InvalidOperationException до любых GL-вызовов.
 - Ошибки GL проверяются минимум раз на кадр и при загрузке ресурсов; InvalidOperationException содержит операцию/код. Исключение onUpdate сохраняется исходным; using освобождает ресурсы. Исключения native refresh/resize/input перехватываются, закрывают окно и повторно выбрасываются после native loop, не выходят через GLFW. Ошибка очистки не заменяет первоначальную ошибку Run.
 
 Единственный владелец GPU — Engine. Кэши по идентичности CPU-объекта живут до Dispose; CPU-объекты не IDisposable. Demo перехватывает исключение на верхнем уровне, пишет причину в stderr и завершает процесс с кодом 1. Собственные exception-классы, backend/DI-контейнер и публичный profiler не добавляются. Ограничения Wayland/macOS/Windows/HiDPI из spike сохраняются, их проверка этим контрактом не объявляется.
@@ -308,11 +315,11 @@ CPU RGBA8-строки идут сверху вниз. LoadTexture до Run то
 
 Это согласованный минимальный объем команды по ответу преподавателя; отдельная анимация и frustum culling необязательны. Правила относятся к реализации, а не к уже существующему коду движка.
 
-- Normal — локальная нормаль поверхности, конечная и ненулевая. Конструктор MeshData сначала проверяет каждую нормаль на конечность и ненулевую длину (ошибка ArgumentException), затем копирует вершины и нормализует нормали в собственной неизменяемой копии. Позиции/UV конечные; вырожденные треугольники по-прежнему допускаются. Отсутствие нормали у вручную созданного mesh теперь ошибка аргумента; фабрики дают корректные нормали автоматически.
+- Normal — локальная нормаль поверхности, конечная и ненулевая. Конструктор MeshData сначала копирует вершины и индексы, затем проверяет уже собственную копию: каждая нормаль конечная и ненулевая (иначе ArgumentException) и нормализуется в копии без переполнения для очень больших и очень малых значений. Так вызывающий код не может изменить данные между проверкой и использованием. Позиции/UV конечные; вырожденные треугольники по-прежнему допускаются. Отсутствие нормали у вручную созданного mesh теперь ошибка аргумента; фабрики дают корректные нормали автоматически.
 - Cube — отдельные вершины/UV/нормали граней; plane в XZ — нормаль +Y и согласованный winding. GPU-формат Position/UV/Normal согласован между #7/#8/#9.
 - Цвета света — конечный RGB в диапазоне [0,1]. Direction — направление распространения лучей в мировых координатах, конечное и ненулевое; renderer проверяет и нормализует его перед вычислением освещения каждого кадра, в том числе после onUpdate. Нулевой цвет допустим (выключить составляющую), новой подсистемы источников не нужно.
 - Нормаль преобразуется inverse-transpose линейной части model, затем нормализуется; нельзя просто умножить на model при неравномерном масштабе. Translation не участвует. Row-vector model = scale * rotation * translation, MVP = model * view * projection; данные System.Numerics передаются GLSL transpose=false, как в ShaderProgram.SetMatrix spike. На стороне GLSL normalMatrix = transpose(inverse(mat3(u_model))); view не участвует, свет и нормаль в world space.
-- Необратимый transform (нулевой scale) отклоняется перед GL-вызовами кадра с понятной ошибкой состояния; отрицательный ненулевой scale не запрещается. Back-face culling в базовой версии можно оставить выключенным, как в текущем архитектурном контракте.
+- Необратимый transform отклоняется перед GL-вызовами кадра с понятной ошибкой состояния: нулевой scale, а также scale, при котором матрица нормалей непредставима во float32 (определитель Scale.X·Scale.Y·Scale.Z — не нормальное число или обратная к линейной части model матрица неконечна). Отрицательный ненулевой scale не запрещается. Back-face culling в базовой версии можно оставить выключенным, как в текущем архитектурном контракте.
 - RGB результата = baseColor.rgb * sampledTexture.rgb * (ambient + directionalColor * max(dot(worldNormal, -normalizedDirection),0)); без texture множитель (1,1,1). Шейдер ограничивает вывод диапазоном [0,1]. Материал непрозрачный, alpha не включает blending. Тени, specular, gamma/HDR/PBR и несколько источников не добавляются.
 - Свет/transform/material менять только на потоке Run/onUpdate. После onUpdate и до любых GL-вызовов кадра невалидные изменяемые данные отклоняются с InvalidOperationException, а не передаются GL. Это дополняет существующие правила ошибок; не вводить новые exception-классы.
 
