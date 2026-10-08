@@ -83,6 +83,38 @@ public sealed class TransformTests
         Assert.ThrowsExactly<InvalidOperationException>(() => transform.GetModelMatrix());
     }
 
+    [TestMethod]
+    [DataRow(1e-15f, 1e-15f, 1e-15f)] // определитель 1e-45 — денормал
+    [DataRow(1e20f, 1e20f, 1e20f)]    // определитель переполняется
+    [DataRow(1e-40f, 1e20f, 1e20f)]   // определитель 1, но обратная матрица содержит 1e40
+    [DataRow(1e-13f, 1e-13f, 5e-13f)] // определитель 5e-39 — денормал: CPU матрицу обратит (1/det ≈ 2e38), а GPU обнулит определитель
+    public void Scale_with_unrepresentable_normal_matrix_fails_validation(float x, float y, float z)
+    {
+        // Матрица нормалей = inverse(mat3(model)) во float32: при таком масштабе освещение объекта стало бы NaN.
+        var transform = new Transform { Scale = new Vector3(x, y, z) };
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(transform.Validate);
+        Assert.Contains("normal matrix", exception.Message);
+        Assert.ThrowsExactly<InvalidOperationException>(() => transform.GetModelMatrix());
+    }
+
+    [TestMethod]
+    [DataRow(1e-6f, 1e-6f, 1e-6f)]
+    [DataRow(1e-30f, 1e15f, 1e15f)]
+    [DataRow(1e12f, 1e12f, 1e12f)]
+    [DataRow(-2f, 0.5f, 3f)]
+    public void Small_large_or_mixed_but_representable_scale_is_allowed(float x, float y, float z)
+    {
+        var transform = new Transform
+        {
+            Scale = new Vector3(x, y, z),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1f, 2f, 3f)), 0.7f),
+        };
+
+        transform.Validate();
+        Assert.IsTrue(Matrix4x4.Invert(transform.GetModelMatrix(), out _));
+    }
+
     private static Matrix4x4 Round(Matrix4x4 m)
     {
         static float R(float v) => MathF.Round(v, 5);
