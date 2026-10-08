@@ -1,6 +1,6 @@
 # Публичный API — контракт версии 1
 
-**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. Это **не реализованный код**. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
+**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. CPU-типы `Engine3D.Core` из раздела 2 реализованы в #7, кроме `PrimitiveFactory` (#8) и `SceneSerializer`/`SceneSnapshot` (#25); остальное — контракт для реализации. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
 
 ## 1. Что должен уметь вызывающий код
 
@@ -54,6 +54,7 @@ public sealed class MaterialData
 {
     public ColorRgba BaseColor { get; set; } = new(1f, 1f, 1f, 1f);
     public TextureData? Texture { get; set; }
+    public void Validate();
 }
 
 public sealed class Transform
@@ -62,6 +63,7 @@ public sealed class Transform
     public Quaternion Rotation { get; set; } = Quaternion.Identity;
     public Vector3 Scale { get; set; } = Vector3.One;
     public Matrix4x4 GetModelMatrix();
+    public void Validate();
 }
 
 public sealed class SceneObject
@@ -77,6 +79,8 @@ public sealed class SceneLighting
     public Vector3 AmbientColor { get; set; } = new(0.2f);
     public Vector3 DirectionalColor { get; set; } = Vector3.One;
     public Vector3 Direction { get; set; } = new(-1f, -1f, -1f);
+    public Vector3 GetNormalizedDirection();
+    public void Validate();
 }
 
 public sealed class Scene
@@ -97,6 +101,7 @@ public sealed class Camera
     public float FarPlane { get; set; } = 100f;
     public Matrix4x4 GetViewMatrix();
     public Matrix4x4 GetProjectionMatrix(float aspectRatio);
+    public void Validate();
 }
 
 public sealed record SceneSnapshot(Scene Scene, Camera Camera);
@@ -300,6 +305,7 @@ CPU RGBA8-строки идут сверху вниз. LoadTexture до Run то
 - RequestClose во время Run запрашивает закрытие при ближайшей обработке событий; из onUpdate новый обычный кадр уже не показывается. Повтор безопасен. До Run — InvalidOperationException; после завершенного Run — no-op до Dispose.
 - Активное закрытие из callback выполняется RequestClose. Dispose вызывается после возврата/исключения Run; внутри onUpdate — InvalidOperationException. Dispose идемпотентен, удаляет кэши/shaders до уничтожения контекста/окна. Ошибка одного удаления не отменяет попытки остальных.
 - Невалидное изменяемое состояние после onUpdate и перед GL — InvalidOperationException по разделу 8. GetModelMatrix/GetViewMatrix/GetProjectionMatrix также сообщают InvalidOperationException при неверном состоянии Transform/Camera; неверный аргумент aspectRatio — ArgumentOutOfRangeException. Quaternion конечный/ненулевой нормализуется при вычислении, Scale конечный/ненулевой по всем осям; отрицательный Scale сохраняется. Camera требует конечные данные, ненулевой Up не параллельный взгляду, Position != Target, 0 < FOV < 180 и 0 < near < far; aspect конечный > 0.
+- Проверки изменяемого состояния сосредоточены в Core (#7): `Transform.Validate()`, `Camera.Validate()`, `MaterialData.Validate()` и `SceneLighting.Validate()` проверяют текущие значения по разделам 7–9 и сообщают InvalidOperationException; `SceneLighting.GetNormalizedDirection()` проверяет свет и возвращает единичное направление. Присваивание свойств значений не проверяет, поэтому в onUpdate их можно менять в любом порядке (например, NearPlane и FarPlane). Renderer (#9) вызывает эти методы после onUpdate до GL-вызовов кадра, SceneSerializer (#25) — перед Save; правила проверки не дублируются.
 - Ошибки GL проверяются минимум раз на кадр и при загрузке ресурсов; InvalidOperationException содержит операцию/код. Исключение onUpdate сохраняется исходным; using освобождает ресурсы. Исключения native refresh/resize/input перехватываются, закрывают окно и повторно выбрасываются после native loop, не выходят через GLFW. Ошибка очистки не заменяет первоначальную ошибку Run.
 
 Единственный владелец GPU — Engine. Кэши по идентичности CPU-объекта живут до Dispose; CPU-объекты не IDisposable. Demo перехватывает исключение на верхнем уровне, пишет причину в stderr и завершает процесс с кодом 1. Собственные exception-классы, backend/DI-контейнер и публичный profiler не добавляются. Ограничения Wayland/macOS/Windows/HiDPI из spike сохраняются, их проверка этим контрактом не объявляется.
