@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Engine3D.Core/Engine3D.Core.csproj" />
+    <ProjectReference Include="../../src/Engine3D.OpenGL/Engine3D.OpenGL.csproj" />
   </ItemGroup>
 
 </Project>
