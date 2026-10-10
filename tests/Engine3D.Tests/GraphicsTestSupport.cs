@@ -89,4 +89,17 @@ internal sealed record Frame(int Width, int Height, byte[] Pixels)
         int y = (int)((clip.Y / clip.W * 0.5f + 0.5f) * Height);
         return At(x, y);
     }
+
+    /// <summary>Точка плоскости z = 0, видимая через центр пикселя (x, y): обратная проекция по матрицам Core.</summary>
+    public Vector3 PointOnPlaneZ0(Camera camera, int x, int y)
+    {
+        Assert.IsTrue(Matrix4x4.Invert(camera.GetViewMatrix() * camera.GetProjectionMatrix(Width / (float)Height), out var inverse));
+        float ndcX = (x + 0.5f) / Width * 2f - 1f;
+        float ndcY = (y + 0.5f) / Height * 2f - 1f;
+        var near = Vector4.Transform(new Vector4(ndcX, ndcY, 0f, 1f), inverse); // глубина Core: [0, 1]
+        var far = Vector4.Transform(new Vector4(ndcX, ndcY, 1f, 1f), inverse);
+        var a = new Vector3(near.X, near.Y, near.Z) / near.W;
+        var b = new Vector3(far.X, far.Y, far.Z) / far.W;
+        return Vector3.Lerp(a, b, a.Z / (a.Z - b.Z));
+    }
 }

@@ -191,4 +191,107 @@ public sealed class SceneRendererTests
         Assert.IsNotNull(last);
         AssertColor(expected, expected, expected, last.At(camera, Vector3.Zero), $"quad with scale {scale}");
     }
+
+    [TestMethod]
+    [DataRow("scale one")]
+    [DataRow("rotation and non-uniform scale")]
+    public void Vertex_normals_are_normalized_before_interpolation(string kind)
+    {
+        // Регрессия ревью #9: нормали вершин разной длины искажали веса интерполяции (при Scale = One было 51 вместо 106).
+        var diagonal = Vector3.Normalize(new Vector3(-1f, 1f, 1f));
+        var (scale, rotation, normals, light) = kind switch
+        {
+            "scale one" => (Vector3.One, Quaternion.Identity, new[] { Vector3.UnitX, Vector3.UnitX, diagonal }, -Vector3.UnitX),
+            "rotation and non-uniform scale" => (
+                new Vector3(2f, 0.5f, 1.5f),
+                Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(0.2f, 1f, 0.1f)), 0.5f),
+                new[] { Vector3.UnitX, Vector3.UnitY, diagonal },
+                Vector3.Normalize(new Vector3(-1f, -0.3f, -0.5f))),
+            _ => throw new ArgumentException($"Unknown case '{kind}'.", nameof(kind)),
+        };
+
+        var (expected, actual) = RenderTriangle(scale, rotation, normals, light);
+
+        AssertColor(expected, expected, expected, actual, kind);
+    }
+
+    [TestMethod]
+    public void Small_normal_components_survive_small_valid_scales()
+    {
+        // Регрессия ревью #9: компонента 1e-40 (subnormal float) допустима в MeshData, а после деления на Scale.Y = 1e-20
+        // значима: мировая нормаль ≈ (1, 1, 0)/√2, уровень ≈ 141. GPU вправе обнулить subnormal — было 178, как у (1, 0, 0).
+        var normal = new Vector3(1f, 1e-40f, 0f);
+
+        var (expected, actual) = RenderTriangle(new Vector3(1e20f, 1e-20f, 1f), Quaternion.Identity, [normal, normal, normal], -Vector3.UnitX);
+
+        Assert.AreEqual(141, expected); // контроль эталона: 0.2 + 0.5 * cos 45° = 0.554 → 141
+        AssertColor(expected, expected, expected, actual, "normal (1, 1e-40, 0) with scale (1e20, 1e-20, 1)");
+    }
+
+    // Треугольник с мировыми вершинами (-1,-1,0), (1,-1,0), (0,1,0) смотрит на камеру (0,0,5): все вершины на одной
+    // глубине, поэтому перспективная интерполяция совпадает с линейной и эталон считается по барицентрикам.
+    // Локальные позиции получены обратным transform. Возвращает эталон и пиксель в центре кадра.
+    private static (int Expected, Rgb Actual) RenderTriangle(Vector3 scale, Quaternion rotation, Vector3[] normals, Vector3 light)
+    {
+        Vector3[] world = [new(-1f, -1f, 0f), new(1f, -1f, 0f), new(0f, 1f, 0f)];
+        var inverseRotation = Quaternion.Inverse(Quaternion.Normalize(rotation));
+        var vertices = new Vertex[3];
+        for (int i = 0; i < 3; i++)
+            vertices[i] = new Vertex(Vector3.Transform(world[i], inverseRotation) / scale, Vector2.Zero, normals[i]);
+        var mesh = new MeshData(vertices, [0, 1, 2]);
+        var scene = new Scene();
+        var item = AddObject(scene, mesh, new ColorRgba(1f, 1f, 1f), Vector3.Zero, scale);
+        item.Transform.Rotation = rotation;
+        scene.Lighting.AmbientColor = new Vector3(0.2f);
+        scene.Lighting.DirectionalColor = new Vector3(0.5f);
+        scene.Lighting.Direction = light;
+        var camera = new Camera { Position = new Vector3(0f, 0f, 5f), Target = Vector3.Zero };
+        Frame? last = null;
+
+        using (var engine = CreateEngine(nameof(RenderTriangle)))
+        {
+            engine.FrameRendered = (width, height, pixels) => last = new Frame(width, height, pixels);
+            RunFrames(engine, scene, camera, frames: 2);
+        }
+
+        Assert.IsNotNull(last);
+        int x = last.Width / 2, y = last.Height / 2;
+        var point = last.PointOnPlaneZ0(camera, x, y);
+        double b2 = (point.Y + 1.0) / 2.0, b1 = (point.X + 1.0 - b2) / 2.0, b0 = 1.0 - b1 - b2;
+        return (ExpectedLevel(item.Transform.GetModelMatrix(), mesh, [b0, b1, b2], light), last.At(x, y));
+    }
+
+    // Эталон по разделу 8 API в double: inverse-transpose линейной части model через обратную матрицу (вектор-строка:
+    // n' = n · (L⁻¹)ᵀ), нормализация вершинных нормалей, барицентрическая интерполяция, нормализация, свет.
+    private static int ExpectedLevel(Matrix4x4 model, MeshData mesh, double[] weights, Vector3 light)
+    {
+        double[,] l = { { model.M11, model.M12, model.M13 }, { model.M21, model.M22, model.M23 }, { model.M31, model.M32, model.M33 } };
+        double determinant = l[0, 0] * (l[1, 1] * l[2, 2] - l[1, 2] * l[2, 1])
+            - l[0, 1] * (l[1, 0] * l[2, 2] - l[1, 2] * l[2, 0])
+            + l[0, 2] * (l[1, 0] * l[2, 1] - l[1, 1] * l[2, 0]);
+        var inverse = new double[3, 3];
+        for (int row = 0; row < 3; row++)
+            for (int column = 0; column < 3; column++)
+            {
+                int r1 = (column + 1) % 3, r2 = (column + 2) % 3, c1 = (row + 1) % 3, c2 = (row + 2) % 3;
+                inverse[row, column] = (l[r1, c1] * l[r2, c2] - l[r1, c2] * l[r2, c1]) / determinant;
+            }
+
+        var sum = new double[3];
+        for (int vertex = 0; vertex < 3; vertex++)
+        {
+            var n = mesh.Vertices[vertex].Normal;
+            var world = new double[3];
+            for (int j = 0; j < 3; j++)
+                world[j] = n.X * inverse[j, 0] + n.Y * inverse[j, 1] + n.Z * inverse[j, 2];
+            double length = Math.Sqrt(world[0] * world[0] + world[1] * world[1] + world[2] * world[2]);
+            for (int j = 0; j < 3; j++)
+                sum[j] += weights[vertex] * world[j] / length;
+        }
+
+        var direction = Vector3.Normalize(light);
+        double diffuse = -(sum[0] * direction.X + sum[1] * direction.Y + sum[2] * direction.Z)
+            / Math.Sqrt(sum[0] * sum[0] + sum[1] * sum[1] + sum[2] * sum[2]);
+        return (int)Math.Round(Math.Clamp(0.2 + 0.5 * Math.Max(diffuse, 0.0), 0.0, 1.0) * 255.0);
+    }
 }
