@@ -42,8 +42,68 @@ public sealed class FramePreparationTests
         Assert.AreEqual(2f, frame.Projection.M22 / frame.Projection.M11, 1e-6f); // ширина/высота кадра
         Assert.AreEqual(scene.Lighting.GetNormalizedDirection(), frame.LightDirection);
         Assert.AreEqual(3, frame.Models.Length);
+        Assert.AreEqual(3, frame.NormalTransforms.Length);
         for (int i = 0; i < 3; i++)
-            Assert.AreEqual(scene.Objects[i].Transform.GetModelMatrix(), frame.Models[i]);
+        {
+            var transform = scene.Objects[i].Transform;
+            Assert.AreEqual(transform.GetModelMatrix(), frame.Models[i]);
+            Assert.AreEqual(FramePreparation.GetNormalTransform(frame.Models[i], transform.Scale), frame.NormalTransforms[i]);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(3f, 0.5f, 1f)]
+    [DataRow(-2f, 1f, 4f)]
+    [DataRow(0.25f, -3f, -0.5f)]
+    public void Normal_transform_gives_the_inverse_transpose_direction(float x, float y, float z)
+    {
+        var transform = new Transform
+        {
+            Position = new Vector3(5f, -2f, 1f),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(0.2f, 1f, 0.1f)), 0.7f),
+            Scale = new Vector3(x, y, z),
+        };
+        var model = transform.GetModelMatrix();
+        Assert.IsTrue(Matrix4x4.Invert(model, out var inverse));
+        var normalMatrix = Matrix4x4.Transpose(inverse); // вектор-строка: n' = n * (L^-1)^T
+
+        var normalTransform = FramePreparation.GetNormalTransform(model, transform.Scale);
+
+        // Как в шейдере: n / |scale| (2^log2), затем строки поворота со знаками масштаба.
+        var inverseScale = new Vector3(MathF.Pow(2f, normalTransform.M41), MathF.Pow(2f, normalTransform.M42), MathF.Pow(2f, normalTransform.M43));
+        foreach (var normal in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Normalize(new Vector3(1f, -2f, 3f)) })
+        {
+            var expected = Vector3.Normalize(Vector3.TransformNormal(normal, normalMatrix));
+            var actual = Vector3.Normalize(Vector3.TransformNormal(normal * inverseScale, normalTransform));
+            Assert.AreEqual(expected.X, actual.X, 1e-5f);
+            Assert.AreEqual(expected.Y, actual.Y, 1e-5f);
+            Assert.AreEqual(expected.Z, actual.Z, 1e-5f);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(1e-30f, 1e15f, 1e15f)]
+    [DataRow(1e30f, -1e-15f, 1e-15f)]
+    [DataRow(1e-19f, 1e-19f, 1e38f)]
+    public void Normal_transform_stays_representable_for_extreme_valid_scales(float x, float y, float z)
+    {
+        var transform = new Transform
+        {
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f),
+            Scale = new Vector3(x, y, z),
+        };
+        transform.Validate();
+
+        var normalTransform = FramePreparation.GetNormalTransform(transform.GetModelMatrix(), transform.Scale);
+
+        // Строки поворота — единичные векторы; 1/|scale| хранится как log2 и не переполняется.
+        Assert.AreEqual(1f, new Vector3(normalTransform.M11, normalTransform.M12, normalTransform.M13).Length(), 1e-6f);
+        Assert.AreEqual(1f, new Vector3(normalTransform.M21, normalTransform.M22, normalTransform.M23).Length(), 1e-6f);
+        Assert.AreEqual(1f, new Vector3(normalTransform.M31, normalTransform.M32, normalTransform.M33).Length(), 1e-6f);
+        Assert.AreEqual(-Math.Log2(Math.Abs(x)), normalTransform.M41, 1e-4);
+        Assert.AreEqual(-Math.Log2(Math.Abs(y)), normalTransform.M42, 1e-4);
+        Assert.AreEqual(-Math.Log2(Math.Abs(z)), normalTransform.M43, 1e-4);
+        Assert.AreEqual(MathF.Sign(y), MathF.Sign(normalTransform.M22)); // знак масштаба сохраняется в строке поворота
     }
 
     [TestMethod]

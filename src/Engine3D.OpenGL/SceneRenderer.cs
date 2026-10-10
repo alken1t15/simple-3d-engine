@@ -21,14 +21,21 @@ internal sealed class SceneRenderer
         uniform mat4 u_model;
         uniform mat4 u_view;
         uniform mat4 u_projection;
+        uniform mat4 u_normalTransform; // see FramePreparation.GetNormalTransform; GLSL sees its rows as columns
 
         out vec2 v_uv;
         out vec3 v_normal;
 
         void main()
         {
-            // World-space normal: inverse-transpose of the model's linear part (correct for non-uniform scale).
-            v_normal = transpose(inverse(mat3(u_model))) * a_normal;
+            // World-space normal: inverse-transpose of model = scale * rotation, i.e. (n / scale) * rotation.
+            // The division by the scale is done in log2 space and the vector is rescaled so its largest component
+            // is 1: valid extreme scales (about 1e-38 to 1e38 per axis) neither overflow nor vanish before normalize.
+            vec3 magnitude = abs(a_normal);
+            vec3 exponent = log2(max(magnitude, vec3(1.17549435e-38))) + u_normalTransform[3].xyz;
+            exponent = mix(vec3(-1.0e30), exponent, greaterThan(magnitude, vec3(0.0))); // zero components stay zero
+            float largest = max(exponent.x, max(exponent.y, exponent.z));
+            v_normal = mat3(u_normalTransform) * (sign(a_normal) * exp2(exponent - largest));
             v_uv = a_uv;
             gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
         }
@@ -63,6 +70,7 @@ internal sealed class SceneRenderer
     private readonly ShaderProgram _shader;
     private readonly GpuResourceCache<MeshData, GpuMesh> _meshes = new(mesh => new GpuMesh(mesh));
     private readonly int _modelLocation;
+    private readonly int _normalTransformLocation;
     private readonly int _viewLocation;
     private readonly int _projectionLocation;
     private readonly int _baseColorLocation;
@@ -78,6 +86,7 @@ internal sealed class SceneRenderer
         try
         {
             _modelLocation = _shader.GetUniformLocation("u_model");
+            _normalTransformLocation = _shader.GetUniformLocation("u_normalTransform");
             _viewLocation = _shader.GetUniformLocation("u_view");
             _projectionLocation = _shader.GetUniformLocation("u_projection");
             _baseColorLocation = _shader.GetUniformLocation("u_baseColor");
@@ -119,6 +128,7 @@ internal sealed class SceneRenderer
 
         var objects = scene.Objects;
         var models = frame.Models;
+        var normalTransforms = frame.NormalTransforms;
         for (int i = 0; i < objects.Count; i++)
         {
             var item = objects[i];
@@ -126,6 +136,7 @@ internal sealed class SceneRenderer
             var color = item.Material.BaseColor;
 
             ShaderProgram.SetMatrix(_modelLocation, models[i]);
+            ShaderProgram.SetMatrix(_normalTransformLocation, normalTransforms[i]);
             GL.Uniform4(_baseColorLocation, color.R, color.G, color.B, color.A);
             mesh.Draw();
         }

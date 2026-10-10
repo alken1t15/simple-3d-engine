@@ -151,4 +151,44 @@ public sealed class SceneRendererTests
         Assert.IsNotNull(last);
         AssertColor(expected, expected, expected, last.At(camera, Vector3.Zero), "stretched quad");
     }
+
+    [TestMethod]
+    [DataRow(1f, 1f, 1f, 0)]
+    [DataRow(1e-30f, 1e15f, 1e15f, 0)]
+    [DataRow(1e30f, 1e-15f, 1e-15f, 0)]
+    [DataRow(1e-19f, 1e-19f, 1e38f, 2)]
+    public void Directional_light_survives_extreme_valid_scales(float x, float y, float z, int normalAxis)
+    {
+        // Регрессия ревью #9: Transform.Validate допускает эти масштабы, а наивное нормирование (n / scale) во float
+        // переполнялось или обнулялось, и направленный свет пропадал. Позиции делятся на масштаб, поэтому квадрат
+        // в мире один и тот же; нормаль задана явно вдоль оси, свет падает навстречу ей. Ожидание одно для всех случаев.
+        var scale = new Vector3(x, y, z);
+        var normal = normalAxis == 0 ? Vector3.UnitX : Vector3.UnitZ;
+        float halfX = 0.5f / scale.X, halfY = 0.5f / scale.Y;
+        var quad = new MeshData(
+            [
+                new Vertex(new Vector3(-halfX, -halfY, 0f), new Vector2(0f, 0f), normal),
+                new Vertex(new Vector3(halfX, -halfY, 0f), new Vector2(1f, 0f), normal),
+                new Vertex(new Vector3(halfX, halfY, 0f), new Vector2(1f, 1f), normal),
+                new Vertex(new Vector3(-halfX, halfY, 0f), new Vector2(0f, 1f), normal),
+            ],
+            [0, 1, 2, 0, 2, 3]);
+        var scene = new Scene();
+        AddObject(scene, quad, new ColorRgba(1f, 1f, 1f), Vector3.Zero, scale);
+        scene.Lighting.AmbientColor = new Vector3(0.2f);
+        scene.Lighting.DirectionalColor = new Vector3(0.5f);
+        scene.Lighting.Direction = -normal;
+        var camera = new Camera { Position = new Vector3(0f, 0f, 5f), Target = Vector3.Zero };
+        Frame? last = null;
+
+        using (var engine = CreateEngine(nameof(Directional_light_survives_extreme_valid_scales)))
+        {
+            engine.FrameRendered = (width, height, pixels) => last = new Frame(width, height, pixels);
+            RunFrames(engine, scene, camera, frames: 2);
+        }
+
+        int expected = Level(0.2f + 0.5f);
+        Assert.IsNotNull(last);
+        AssertColor(expected, expected, expected, last.At(camera, Vector3.Zero), $"quad with scale {scale}");
+    }
 }
