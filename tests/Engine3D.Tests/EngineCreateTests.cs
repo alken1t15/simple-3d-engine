@@ -43,17 +43,41 @@ public sealed class EngineCreateTests
     }
 
     [TestMethod]
-    [WithoutDisplay]
-    public void Create_without_display_reports_InvalidOperationException_and_can_be_retried()
+    [OSCondition(OperatingSystems.Linux)]
+    public void Create_reports_unavailable_display_on_every_attempt()
     {
-        // Ошибку создания окна сообщает GLFW из нативного колбэка; Engine не возвращается, процесс не падает,
-        // а повторная попытка дает ту же понятную ошибку, а не следствие прошлой.
-        GraphicsTestSupport.AllowTestRunnerThreads();
+        // Отдельный процесс с заведомо недоступным X11-дисплеем: GLFW там еще не инициализирован, а его состояние
+        // не влияет на остальные тесты. Повторный Create должен снова сообщить причину, а не NotInitialized.
+        var (exitCode, output) = RunWithUnavailableDisplay();
 
-        for (int attempt = 0; attempt < 2; attempt++)
-        {
-            var exception = Assert.ThrowsExactly<InvalidOperationException>(() => Engine.Create(new EngineOptions()));
-            Assert.StartsWith("Failed to create an OpenGL 3.3 core window: GLFW reported ", exception.Message);
-        }
+        Assert.AreEqual(0, exitCode, output);
+        AssertPlatformUnavailable(output);
+    }
+
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    [GraphicsTest]
+    public void Create_succeeds_in_the_same_process_after_the_display_becomes_available()
+    {
+        string? display = Environment.GetEnvironmentVariable("DISPLAY");
+        if (string.IsNullOrEmpty(display))
+            Assert.Inconclusive("Requires an X11 display in DISPLAY.");
+
+        var (exitCode, output) = RunWithUnavailableDisplay(display);
+
+        Assert.AreEqual(0, exitCode, output);
+        AssertPlatformUnavailable(output);
+        Assert.Contains("after restore: created", output);
+    }
+
+    private static (int ExitCode, string Output) RunWithUnavailableDisplay(params string[] restoreDisplay) =>
+        TestProcess.Run(
+            new Dictionary<string, string?> { ["DISPLAY"] = TestProcess.UnavailableDisplay, ["WAYLAND_DISPLAY"] = null },
+            [TestProcess.CreateWithoutDisplayScenario, .. restoreDisplay]);
+
+    private static void AssertPlatformUnavailable(string output)
+    {
+        for (int attempt = 1; attempt <= 2; attempt++)
+            Assert.Contains($"attempt {attempt}: Failed to create an OpenGL 3.3 core window: GLFW reported PlatformUnavailable: ", output);
     }
 }

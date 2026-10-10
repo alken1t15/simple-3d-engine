@@ -19,22 +19,3 @@ public sealed class GraphicsTestAttribute : ConditionBaseAttribute
 
     public override string GroupName => nameof(GraphicsTestAttribute);
 }
-
-/// <summary>
-/// Тест для Linux без оконной системы (переменные DISPLAY и WAYLAND_DISPLAY пусты), как в обычном CI.
-/// При наличии дисплея пропускается: проверяемая ошибка создания окна там не воспроизводится.
-/// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public sealed class WithoutDisplayAttribute : ConditionBaseAttribute
-{
-    public WithoutDisplayAttribute()
-        : base(ConditionMode.Include) =>
-        IgnoreMessage = "Requires Linux without DISPLAY and WAYLAND_DISPLAY.";
-
-    public override bool IsConditionMet =>
-        OperatingSystem.IsLinux()
-        && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY"))
-        && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
-
-    public override string GroupName => nameof(WithoutDisplayAttribute);
-}
