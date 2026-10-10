@@ -89,6 +89,14 @@ public sealed class Engine : IDisposable
         NativeWindow? window = null;
         try
         {
+            // GLFWProvider.EnsureInitialized (OpenTK 4.9.4) игнорирует неудачу glfwInit и все равно считает GLFW
+            // инициализированным: следующий Create получил бы лишь NotInitialized. Поэтому успех проверяется явно:
+            // glfwInit сразу возвращает true, если GLFW уже инициализирован, а после неудачи оставляет его
+            // неинициализированным, и следующий Create повторяет попытку (например, когда дисплей стал доступен).
+            GLFWProvider.EnsureInitialized();
+            if (!GLFW.Init())
+                throw new InvalidOperationException("GLFW initialization failed.");
+
             window = new NativeWindow(new NativeWindowSettings
             {
                 ClientSize = new Vector2i(options.Width, options.Height),
