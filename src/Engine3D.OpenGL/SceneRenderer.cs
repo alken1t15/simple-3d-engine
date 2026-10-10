@@ -16,7 +16,8 @@ internal sealed class SceneRenderer
         #version 330 core
         layout(location = 0) in vec3 a_position;
         layout(location = 1) in vec2 a_uv;
-        layout(location = 2) in vec3 a_normal;
+        layout(location = 2) in vec3 a_normalLog2; // log2 |n| per component, see GpuMesh.EncodeNormals
+        layout(location = 3) in vec3 a_normalSign; // sign of each normal component: -1, 0 or 1
 
         uniform mat4 u_model;
         uniform mat4 u_view;
@@ -29,13 +30,12 @@ internal sealed class SceneRenderer
         void main()
         {
             // World-space normal: inverse-transpose of model = scale * rotation, i.e. (n / scale) * rotation.
-            // The division by the scale is done in log2 space and the vector is rescaled so its largest component
-            // is 1: valid extreme scales (about 1e-38 to 1e38 per axis) neither overflow nor vanish before normalize.
-            vec3 magnitude = abs(a_normal);
-            vec3 exponent = log2(max(magnitude, vec3(1.17549435e-38))) + u_normalTransform[3].xyz;
-            exponent = mix(vec3(-1.0e30), exponent, greaterThan(magnitude, vec3(0.0))); // zero components stay zero
+            // Dividing by the scale adds log2 exponents; rescaling so the largest component is 1 keeps every valid
+            // normal and scale from overflowing or vanishing. The normal is unit before interpolation (vertex
+            // normals of different length would skew the weights) and is normalized again per fragment.
+            vec3 exponent = a_normalLog2 + u_normalTransform[3].xyz;
             float largest = max(exponent.x, max(exponent.y, exponent.z));
-            v_normal = mat3(u_normalTransform) * (sign(a_normal) * exp2(exponent - largest));
+            v_normal = mat3(u_normalTransform) * normalize(a_normalSign * exp2(exponent - largest));
             v_uv = a_uv;
             gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
         }
