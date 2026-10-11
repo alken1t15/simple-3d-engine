@@ -30,3 +30,39 @@ jobs:
           name: core-test-results
           path: artifacts/core-tests/*.trx
           if-no-files-found: warn
+
+  graphics-tests:
+    # Те же тесты плюс графические (ENGINE3D_GRAPHICS_TESTS=1): окно и контекст OpenGL 3.3 на виртуальном
+    # дисплее Xvfb с программным OpenGL Mesa (llvmpipe). Проверяют поведение и пиксели кадра, а не производительность;
+    # картинку и FPS на целевом GPU проверяют вручную.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENGINE3D_GRAPHICS_TESTS: '1'
+      LIBGL_ALWAYS_SOFTWARE: 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install virtual display and software OpenGL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth libgl1 libgl1-mesa-dri \
+            libx11-6 libxcursor1 libxext6 libxi6 libxinerama1 libxrandr2
+      - name: Restore dependencies
+        run: dotnet restore Engine3D.sln
+      - name: Build solution
+        run: dotnet build Engine3D.sln --configuration Release --no-restore
+      - name: Run tests with a graphics context
+        timeout-minutes: 5
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet test Engine3D.sln --configuration Release --no-build --logger "trx;LogFileName=graphics-tests.trx" --results-directory artifacts/graphics-tests
+      - name: Upload graphics test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: graphics-test-results
+          path: artifacts/graphics-tests/*.trx
+          if-no-files-found: warn
