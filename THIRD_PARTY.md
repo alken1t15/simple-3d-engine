@@ -20,4 +20,6 @@
 
 **Собственные ассеты команды:** контрольная текстура [`spikes/OpenTkSpike/Assets/control.png`](spikes/OpenTkSpike/Assets/control.png) создана командой скриптом [`generate_control_texture.py`](spikes/OpenTkSpike/Assets/generate_control_texture.py) (без шрифтов и чужих изображений) и распространяется вместе с репозиторием по MIT. Скриншоты в [`docs/spikes/`](docs/spikes/) сняты с этой сцены.
 
+GIF в [`docs/previews/`](docs/previews/) записаны с собственного renderer на версии [`4adc4fdb` из PR #36](https://github.com/alken1t15/simple-3d-engine/pull/36/commits/4adc4fdb1b902ffb24d13ccfb8b5aab17b93f578). Они основаны на собственных процедурных сценах из `SceneRendererTests` с добавленным движением камеры или направления света, не содержат сторонних моделей, текстур или шрифтов и распространяются по MIT вместе с репозиторием.
+
 Собственная контрольная текстура для проверки UV должна быть явно помечена как созданная командой. Наличие чужого ассета не делает его автоматически совместимым с лицензией репозитория.
