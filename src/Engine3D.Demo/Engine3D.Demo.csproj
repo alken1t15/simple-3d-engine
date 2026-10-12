@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="Assets/control.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets/**/*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
