@@ -119,6 +119,8 @@ public sealed class EngineOptions
     public int Height { get; init; } = 720;
     public string Title { get; init; } = "Engine3D Demo";
     public bool VSync { get; init; } = true;
+    public bool FocusOnShow { get; init; } = true;
+    public (int X, int Y)? Position { get; init; }
 }
 
 public sealed class Engine : IDisposable
@@ -126,6 +128,7 @@ public sealed class Engine : IDisposable
     public static Engine Create(EngineOptions options);
     public TextureData LoadTexture(string path);
     public long RenderedFrames { get; }
+    public (int X, int Y, int Width, int Height) WindowBounds { get; }
     public void Run(Scene scene, Camera camera, Action<float>? onUpdate = null);
     public void RequestClose();
     public void Dispose();
@@ -136,6 +139,8 @@ public sealed class Engine : IDisposable
 
 `MaterialData` и `Transform` допускают изменение во время `Run`, **на том же потоке**, на котором выполняется `onUpdate`. Сцена не обещает безопасную запись из фонового потока. `MaterialData.Texture` может ссылаться на одну `TextureData` во многих объектах.
 
+`EngineOptions` дополнительно задает фокус и положение окна: `FocusOnShow` (по умолчанию `true`) — забирает ли окно фокус, когда `Run` делает его видимым; `Position` — начальное положение клиентской области в экранных пунктах от левого верхнего угла (`null` — положение выбирает ОС). Текущее положение и размер клиентской области доступны как `Engine.WindowBounds` в тех же единицах, что `Position`, `Width` и `Height`: приложение может запомнить их и открыть следующее окно там же.
+
 ## 3. Жизненный цикл и владение
 
 | Действие | Правило |
@@ -144,6 +149,7 @@ public sealed class Engine : IDisposable
 | `LoadTexture` | Для P0 вызывается после `Create` и до `Run`; декодирует изображение в CPU-данные. Для P0 выбран PNG и декодер StbImageSharp; реализация — в #10. |
 | `Run` | Блокирует вызывающий поток до закрытия окна или `RequestClose`; обрабатывает события, вызывает `onUpdate`, рендерит и показывает кадры. Для P0 один `Run` на один `Engine`. |
 | `RenderedFrames` | Обнуляется перед `Run`, увеличивается после показанного кадра и доступен после возврата `Run`. Не равен числу вызовов `onUpdate`. |
+| `WindowBounds` | Текущее положение и размер клиентской области окна в единицах `EngineOptions.Position`, `Width` и `Height`; читается с потока `Create`, например из `onUpdate`. |
 | `RequestClose` | Просит завершить цикл при ближайшей обработке события; не освобождает ресурсы немедленно. |
 | `Dispose` | Освобождает GPU-кэш, шейдеры, окно и контекст. Повторный вызов безопасен. `Scene`, `MeshData`, `TextureData` не вызывают `Dispose`. |
 
