@@ -114,6 +114,11 @@ public sealed class Engine : IDisposable
             if (!GLFW.Init())
                 throw new InvalidOperationException("GLFW initialization failed.");
 
+            // Окно создается скрытым (StartVisible = false) и показывается в RunLoop через ShowWindow.
+            // OpenTK переводит StartFocused в хинт Focused (фокус при создании), но не трогает FocusOnShow,
+            // поэтому фокус при показе задается отдельным хинтом перед созданием окна.
+            GLFW.WindowHint(WindowHintBool.FocusOnShow, options.FocusOnShow);
+
             window = new NativeWindow(new NativeWindowSettings
             {
                 ClientSize = new Vector2i(options.Width, options.Height),
