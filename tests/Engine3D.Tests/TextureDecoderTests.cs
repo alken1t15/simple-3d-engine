@@ -9,6 +9,99 @@ public sealed class TextureDecoderTests
 {
     internal static string ControlPath => Path.Combine(AppContext.BaseDirectory, "Assets", "control.png");
 
+    // Собственная PNG 4×1, RGBA8, filter=0, stored-deflate, исходный пиксель (16,32,48,255).
+    // Сгенерирована стандартными struct/zlib Python; фиксированные CRC дают независимый от кода validator эталон.
+    private const string StoredPng = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAYAAAD5PA/NAAAAHElEQVR4AQERAO7/ABAgMP8QIDD/ECAw/xAgMP8o9QV9b5nPpgAAAABJRU5ErkJggg==";
+    private const string BadAdlerPng = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAYAAAD5PA/NAAAAHElEQVR4AQERAO7/ABAgMP8QIDD/ECAw/xAgMP8o9QV8GJ7/MAAAAABJRU5ErkJggg==";
+
+    [TestMethod]
+    [DataRow("missing IEND")]
+    [DataRow("truncated IDAT")]
+    [DataRow("truncated IEND")]
+    [DataRow("bad IHDR CRC")]
+    [DataRow("bad IDAT CRC")]
+    [DataRow("bad Adler")]
+    public void Damaged_real_PNG_has_a_readable_reason_and_original_exception(string damage)
+    {
+        byte[] bytes = File.ReadAllBytes(ControlPath);
+        string expected;
+        switch (damage)
+        {
+            case "missing IEND":
+                bytes = bytes[..^12];
+                expected = "missing IEND";
+                break;
+            case "truncated IDAT":
+                bytes = bytes[..45]; // IHDR целый, IDAT начат, данных и CRC не хватает
+                expected = "Truncated PNG chunk IDAT";
+                break;
+            case "truncated IEND":
+                bytes = bytes[..^3];
+                expected = "Truncated PNG chunk";
+                break;
+            case "bad IHDR CRC":
+                bytes = Convert.FromBase64String(StoredPng);
+                bytes[29] ^= 1;
+                expected = "IHDR has invalid CRC-32";
+                break;
+            case "bad IDAT CRC":
+                bytes = Convert.FromBase64String(StoredPng);
+                bytes[49] ^= 255; // первый пиксель stored-deflate; CRC и Adler не пересчитываются
+                expected = "IDAT has invalid CRC-32";
+                break;
+            default:
+                bytes = Convert.FromBase64String(BadAdlerPng); // неверный Adler с корректным CRC чанка
+                expected = "Adler-32";
+                break;
+        }
+        string path = Path.Combine(Path.GetTempPath(), $"damaged-{Guid.NewGuid():N}.png");
+        try
+        {
+            File.WriteAllBytes(path, bytes);
+            var error = Assert.ThrowsExactly<InvalidDataException>(() => TextureDecoder.Load(path));
+            Assert.Contains(path, error.Message);
+            Assert.Contains(expected, error.Message);
+            Assert.IsFalse(error.Message.Any(char.IsControl), "User-facing reason must not contain NUL/control characters.");
+            Assert.IsNotNull(error.InnerException);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow("   ")]
+    [DataRow("\0\0\0")]
+    [DataRow("IE\0")]
+    [DataRow("bad\nPNG")]
+    public void Unreadable_decoder_reason_uses_meaningful_fallback(string? reason) =>
+        Assert.AreEqual("PNG data is damaged or unsupported.", TextureDecoder.ReadableReason(reason));
+
+    [TestMethod]
+    public void Readable_decoder_reason_is_preserved() =>
+        Assert.AreEqual("unsupported bit depth", TextureDecoder.ReadableReason(" unsupported bit depth "));
+
+    [TestMethod]
+    public void Stored_deflate_with_valid_CRC_and_Adler_is_accepted()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"valid-{Guid.NewGuid():N}.png");
+        try
+        {
+            File.WriteAllBytes(path, Convert.FromBase64String(StoredPng));
+            var texture = TextureDecoder.Load(path);
+            Assert.AreEqual(4, texture.Width);
+            Assert.AreEqual(1, texture.Height);
+            CollectionAssert.AreEqual(new byte[] { 16, 32, 48, 255 }, texture.Pixels[..4].ToArray());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [TestMethod]
     public void Png_decodes_RGBA8_top_down_with_full_source_path()
     {

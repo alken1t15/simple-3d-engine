@@ -13,7 +13,7 @@ internal sealed class GpuTexture : IDisposable
     {
         GL.GetInteger(GetPName.MaxTextureSize, out int maxSize);
         if (texture.Width > maxSize || texture.Height > maxSize)
-            throw new InvalidOperationException($"Texture {texture.Width}x{texture.Height} exceeds GPU limit {maxSize}.");
+            throw new InvalidOperationException($"Texture '{texture.SourcePath ?? "<in-memory>"}' {texture.Width}x{texture.Height} exceeds GPU limit {maxSize}.");
 
         Handle = GL.GenTexture();
         try

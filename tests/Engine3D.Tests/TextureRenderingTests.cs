@@ -178,6 +178,26 @@ public sealed class TextureRenderingTests
     }
 
     [TestMethod]
+    public void Oversized_texture_reports_source_path_or_in_memory_origin()
+    {
+        if (RunOnMainThread())
+            return;
+        using var engine = CreateEngine(nameof(Oversized_texture_reports_source_path_or_in_memory_origin));
+        GL.GetInteger(GetPName.MaxTextureSize, out int maxSize);
+        string path = Path.GetFullPath("oversized-control.png");
+        foreach (string? source in new string?[] { path, null })
+        {
+            var texture = new TextureData(maxSize + 1, 1, new byte[checked((maxSize + 1) * 4)], source);
+            var error = Assert.ThrowsExactly<InvalidOperationException>(() => new GpuTexture(texture));
+            Assert.Contains(source ?? "<in-memory>", error.Message);
+            Assert.Contains($"{maxSize + 1}x1 exceeds GPU limit {maxSize}", error.Message);
+        }
+        Assert.AreEqual(0, engine.GpuTextureCount);
+        using var valid = new GpuTexture(new TextureData(1, 1, [255, 255, 255, 255]));
+        Assert.IsTrue(GL.IsTexture(valid.Handle)); // отказ до создания handle не портит контекст
+    }
+
+    [TestMethod]
     public void GPU_texture_is_deleted_and_CPU_data_survives()
     {
         if (RunOnMainThread())

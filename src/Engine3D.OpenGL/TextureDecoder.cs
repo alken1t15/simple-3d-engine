@@ -18,13 +18,20 @@ internal static class TextureDecoder
 
         try
         {
+            using var compressed = PngIntegrity.ReadImageData(encoded);
             using var stream = new MemoryStream(encoded, writable: false);
             var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            PngIntegrity.ValidateImageData(compressed, image.Width, image.Height);
             return new TextureData(image.Width, image.Height, image.Data, fullPath);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            throw new InvalidDataException($"Cannot decode PNG texture '{fullPath}': {exception.Message}", exception);
+            throw new InvalidDataException($"Cannot decode PNG texture '{fullPath}': {ReadableReason(exception.Message)}", exception);
         }
     }
+
+    internal static string ReadableReason(string? message) =>
+        string.IsNullOrWhiteSpace(message) || message.Any(char.IsControl)
+            ? "PNG data is damaged or unsupported."
+            : message.Trim();
 }

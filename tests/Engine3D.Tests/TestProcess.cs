@@ -45,6 +45,7 @@ public static class TestProcess
             tests.Texture_multiplies_base_color_and_light_and_can_be_removed_between_frames,
             tests.LoadTexture_enforces_thread_state_and_disposal,
             tests.GPU_texture_is_deleted_and_CPU_data_survives,
+            tests.Oversized_texture_reports_source_path_or_in_memory_origin,
         ];
         if (selected is not null && !checks.Any(check => check.Method.Name == selected))
             return 2;
