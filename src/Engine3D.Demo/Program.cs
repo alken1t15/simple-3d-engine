@@ -5,16 +5,17 @@ using System.Reflection;
 using Engine3D.Core;
 using Engine3D.OpenGL;
 
-// Ручная проверка того, что добавлено в ветке khmelev/9-opengl-renderer.
+// Ручная проверка рендера #9 и текстур #10 (загрузка PNG, ориентация UV, mipmap, странные размеры).
 // Программа умеет:
 //   (без аргументов)  ручной прогон всех кейсов: печатает описание, открывает окно отдельным
 //                     процессом, спрашивает y/n одним символом и сама закрывает окно;
 //   --only N [N...]   то же, но только для перечисленных кейсов;
-//   --nth N           открыть только N-й сценарий в окне (N = 1..7);
+//   --from N          тот же ручной прогон, что и без аргументов, но начиная с кейса N;
+//   --nth N           открыть только N-й сценарий в окне (N = 1..scenarios.Length);
 //   --all             прогнать все сценарии по очереди без вопросов (окно закрывает человек).
 // Кейсы и их порядок совпадают с массивом scenarios. Отдельный сценарий запускается в дочернем
 // процессе, чтобы родительский мог параллельно читать y/n из терминала.
-// Это не демо-приложение #11: файл предназначен только для ручной проверки и не коммитится.
+// Это не демо-приложение #11: файл предназначен только для ручной проверки.
 
 var scenarios = new (string Name, Action Run)[]
 {
@@ -25,6 +26,16 @@ var scenarios = new (string Name, Action Run)[]
     ("движущийся свет при движении камеры", Scenario8_MovingLight),
     ("дождь кубов: камера пролетает сквозь объём", Scenario9_CubeField),
     ("панорама камеры по большой сцене", Scenario10_Pan),
+    ("smoke: серая фототекстура 1024×1024", Scenario12_SmokeGray),
+    ("smoke: цветная фототекстура 1024×1024", Scenario11_SmokeColor),
+    ("smoke: серая фототекстура, куб неподвижен, облёт камеры", Scenario20_SmokeGrayOrbit),
+    ("smoke: цветная фототекстура, куб неподвижен, облёт камеры", Scenario21_SmokeRgbOrbit),
+    ("нестандартные разрешения (67×67, 1×1024, 1×1 и др.)", Scenario13_WeirdSizes),
+    ("абстрактное поле кубов (текстуры Assets/random/)", Scenario14_AbstractCubes),
+    ("облетающий свет над полем кубов (день/ночь)", Scenario15_MovingLightCubes),
+    ("100 кубов с чередующимися текстурами, вращение", Scenario18_RotatingCubeField),
+    ("шахматная доска 8×8 с фигурами", Scenario19_Chessboard),
+    ("логотип Dota 2 из кубов (упрощённое лого)", Scenario22_Dota2Logo),
 };
 
 // Описания параллельны scenarios: descriptions[i] относится к scenarios[i].
@@ -102,6 +113,99 @@ string[] descriptions =
       * далёкие башни не «просвечивают» через ближние и не мерцают;
       * движение плавное, без провалов кадров.
     """,
+    """
+    Серая фототекстура gray_1024x1024 на кубе; пол без текстуры.
+
+    Ожидаем:
+      * изображение чёрно-белое (grayscale), как исходный файл, без цветовых остатков;
+      * на гранях не перевёрнуто и не зеркально, без артефактов;
+      * освещение работает как с цветной текстурой — есть яркая и тёмная грани.
+    """,
+    """
+    Фототекстура rgb_1024x1024 на кубе; пол без текстуры.
+
+    Ожидаем:
+      * изображение на гранях куба без артефактов — не перевёрнуто, не зеркально,
+        цвета соответствуют исходному файлу;
+      * грани освещены по свету (яркая/тёмная стороны куба);
+      * пол без текстуры рендерится как раньше (белый fallback), текстура не «протекает» на него.
+    """,
+    """
+    Серая фототекстура gray_1024x1024 на неподвижном кубе; пол без текстуры. Куб не вращается:
+    вокруг него по кругу облетает камера, меняется только ракурс.
+
+    Ожидаем:
+      * по движению видно, что крутится камера, а не куб;
+      * изображение чёрно-белое без цветовых остатков, не перевёрнуто и не зеркально;
+      * пол без текстуры рендерится как раньше (белый fallback).
+    """,
+    """
+    Цветная фототекстура rgb_1024x1024 на неподвижном кубе; пол без текстуры. Куб не вращается:
+    вокруг него по кругу облетает камера, меняется только ракурс.
+
+    Ожидаем:
+      * по движению видно, что крутится камера, а не куб;
+      * изображение на гранях без артефактов — не перевёрнуто, не зеркально, цвета соответствуют файлу;
+      * грани освещены по свету, тёмные не становятся полностью чёрными.
+    """,
+    """
+    Ряд кубов с текстурами нестандартных размеров: rgb_67x67, rgb_1x1024, rgb_512x1024,
+    gray_1x1, gray_1024x1, gray_1024x512, gray_1000x1000.
+
+    Ожидаем:
+      * каждая текстура открылась без ошибок (в консоль печатаются имена загруженных файлов);
+      * узкие вытянутые текстуры (1x1024, 1024x1) отображаются растянутыми по грани куба,
+        а не обрезанными или мусором;
+      * текстура 1x1 даёт один сплошной цвет;
+      * нет чёрных/белых полос, мерцания и «просвечивания» кубов при облёте камеры.
+    """,
+    """
+    Абстрактное поле кубов (3×3×3) с текстурами metal/mosaic/stone/tiles/velvet/wood из Assets/random/;
+    кубы вращаются, камера медленно облетает сцену.
+
+    Ожидаем:
+      * каждая текстура загрузилась без ошибок (имена печатаются в консоль);
+      * на гранях текстуры видны без артефактов, мерцания и чёрных/белых граней;
+      * вращение кубов и облёт камеры плавные, без провалов кадров.
+    """,
+    """
+    Поле текстурированных кубов; направленный свет облетает сцену по кругу, цвет и яркость света
+    меняются — «день» сменяется «ночью».
+
+    Ожидаем:
+      * при движении света грани плавно светлеют и темнеют, без резких скачков;
+      * текстуры читаются и на освещённых, и на затенённых гранях;
+      * нет чёрных/белых граней и мерцания.
+    """,
+    """
+    Сто кубов (10×10) с чередующимися текстурами wood/stone — как шахматное поле; каждый куб вращается
+    вокруг своей оси (у разных кубов разные оси и скорости). Освещение дефолтное, камера медленно облетает поле.
+
+    Ожидаем:
+      * чередование текстур видно как шахматное поле, текстуры не перемешаны;
+      * вращение каждого куба ровное и вокруг собственного центра, без «дрожания»;
+      * все 100 кубов отрендерены, без мерцания и провалов кадров при облёте.
+    """,
+    """
+    Шахматная доска 8×8: клетки — плоские кубы с чередующимися текстурами tiles/stone (светлая/тёмная);
+    фигуры — кубы поменьше (wood и metal) на двух крайних рядах доски. Освещение дефолтное, камера облетает доску.
+
+    Ожидаем:
+      * клетки чередуются как на настоящей доске, светлые и тёмные не путаются;
+      * фигуры двух текстур стоят на клетках крайних рядов, не «проваливаются» в доску;
+      * текстуры не перепутаны между клетками и фигурами.
+    """,
+    """
+    Эмблема Dota 2 (упрощённое лого: красная плита + белые угловые росчерки) из кубов на сетке 24×24;
+    Форма растеризована из svg на Wikimedia Commons. Кубы стоят на месте, камера облетает лого,
+    фон — текстура velvet с красным оттенком, текстуры на кубах перемешаны случайно.
+    Одинаковая эмблема выложена обеими сторонами плиты. Количество кубов печатается в консоль.
+
+    Ожидаем:
+      * силуэт лого узнаваем (диагональный росчерк и два рога) с обеих сторон плиты, фон — velvet;
+      * камера плавно облетает эмблему, кубы неподвижны;
+      * рендер стабилен (количество кубов эмблемы в консоли), без мерцания при облёте.
+    """,
 };
 
 string outDir = Path.Combine(Environment.CurrentDirectory, "artifacts", "manual-demo");
@@ -131,10 +235,29 @@ if (positionAt >= 0)
     cliArgs.RemoveRange(positionAt, 2);
 }
 
+// --from N: тот же ручной прогон, что и без аргументов, но начиная с кейса N. Аргумент вырезается,
+// чтобы дальше разбор пошёл по ветке guided-режима.
+int? from = null;
+int fromAt = cliArgs.IndexOf("--from");
+if (fromAt >= 0)
+{
+    if (fromAt + 1 >= cliArgs.Count
+        || !int.TryParse(cliArgs[fromAt + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int start)
+        || start < 1
+        || start > scenarios.Length)
+    {
+        Console.WriteLine($"--from: ожидается число от 1 до {scenarios.Length}.");
+        return 1;
+    }
+
+    from = start;
+    cliArgs.RemoveRange(fromAt, 2);
+}
+
 args = [.. cliArgs];
 
 if (args.Length == 0)
-    return await GuidedAsync(AllIndices(scenarios.Length), scenarios, descriptions, outDir);
+    return await GuidedAsync(from is { } start ? FromIndex(start, scenarios.Length) : AllIndices(scenarios.Length), scenarios, descriptions, outDir);
 
 if (args[0] is "--help" or "-h" or "help")
 {
@@ -192,6 +315,11 @@ return 1;
 
 static int[] AllIndices(int count) => [.. Enumerable.Range(1, count)];
 
+static int[] FromIndex(int start, int count) => [.. Enumerable.Range(start, count - start + 1)];
+
+// Полный путь к ассету текстуры в папке Assets рядом с исполняемым файлом.
+static string AssetPath(string name) => Path.Combine(AppContext.BaseDirectory, "Assets", name);
+
 static bool TryParsePosition(string value, out (int X, int Y) position)
 {
     string[] parts = value.Split(',');
@@ -209,11 +337,12 @@ static bool TryParsePosition(string value, out (int X, int Y) position)
 
 static void PrintUsage(int count)
 {
-    Console.WriteLine("Ручная проверка рендера #9. Использование:");
+    Console.WriteLine("Ручная проверка рендера #9 и текстур #10. Использование:");
     Console.WriteLine("  dotnet run --project src/Engine3D.Demo --configuration Release");
     Console.WriteLine("  dotnet run --project src/Engine3D.Demo --configuration Release -- --only 1 5");
     Console.WriteLine($"  dotnet run --project src/Engine3D.Demo --configuration Release -- --nth N   (N = 1..{count})");
     Console.WriteLine("  dotnet run --project src/Engine3D.Demo --configuration Release -- --all");
+    Console.WriteLine("  ... -- --from N   ручной прогон, начиная с кейса N (без флага — с первого)");
     Console.WriteLine("  ... -- --position X,Y   положение окна в пунктах от левого верхнего угла (по умолчанию 0,40)");
     Console.WriteLine("  Без --position окно открывается там, где вы оставили предыдущее (запоминается после каждого кейса).");
 }
@@ -232,7 +361,7 @@ static async Task<int> GuidedAsync(int[] indices, (string Name, Action Run)[] sc
     Directory.CreateDirectory(outDir);
 
     Line('=');
-    Console.WriteLine(" Ручная проверка OpenGL-рендера #9 (ветка khmelev/9-opengl-renderer)");
+    Console.WriteLine(" Ручная проверка OpenGL-рендера #9 и текстур #10");
     Line('=');
     Console.WriteLine($" {indices.Length} кейсов, вывод пишется в {outDir}/case-N.log.");
     Console.WriteLine(" Отвечайте y, если увиденное совпало с описанием, иначе любой другой символ — выход с ошибкой.");
@@ -409,11 +538,13 @@ static Scene NewLitScene()
 }
 
 // Показывает сцену в отдельном окне до тех пор, пока окно не закроют, и печатает счетчик кадров.
+// onCreated вызывается после создания Engine и до Run — единственное место, где валиден LoadTexture.
 // Пока окно открыто, его текущее положение и размер пишутся в файл, чтобы следующее окно (следующий кейс
 // или повторный запуск) открылось там же, где пользователь оставил предыдущее — включая ручной перетаскиванием.
-static void RunWindow(string title, Scene scene, Camera camera, Action<float>? onUpdate = null)
+static void RunWindow(string title, Scene scene, Camera camera, Action<float>? onUpdate = null, Action<Engine>? onCreated = null)
 {
     using var engine = CreateEngine(title);
+    onCreated?.Invoke(engine);
     Console.WriteLine("  Окно открыто. Закройте его, чтобы завершить сценарий.");
 
     (int X, int Y, int Width, int Height)? persisted = null;
@@ -680,6 +811,464 @@ static void Scenario10_Pan()
         time += deltaSeconds * 0.4f;
         camera.Position = new Vector3(MathF.Sin(time) * 20f, 10f + MathF.Sin(time * 1.7f) * 2f, 22f + MathF.Cos(time * 0.6f) * 5f);
         camera.Target = new Vector3(MathF.Sin(time) * 4f, 0f, 0f);
+    });
+}
+
+// Smoke-проверка цветной фототекстуры: куб с rgb_1024x1024, пол без текстуры (fallback не портится).
+static void Scenario11_SmokeColor()
+{
+    Console.WriteLine("Смотрите: куб с цветной фототекстурой rgb_1024x1024, пол без текстуры.");
+    Console.WriteLine("Картинка без артефактов, не перевёрнута и не зеркальна; пол — как раньше.");
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.35f);
+    var cubeMaterial = new MaterialData();
+    var cube = new SceneObject(PrimitiveFactory.CreateCube(), cubeMaterial);
+    cube.Transform.Position = new Vector3(0f, 0.3f, 0f);
+    scene.Add(cube);
+    Add(scene, PrimitiveFactory.CreatePlane(12f, 12f), new ColorRgba(0.3f, 0.35f, 0.42f), new Vector3(0f, -1.2f, 0f));
+
+    var camera = new Camera { Position = new Vector3(0f, 2f, 6f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 9 smoke color", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.6f;
+        cube.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, t);
+    }, onCreated: engine => cubeMaterial.Texture = engine.LoadTexture(AssetPath("sizes/rgb_1024x1024.png")));
+}
+
+// Smoke-проверка серой фототекстуры: куб с gray_1024x1024 (grayscale), пол без текстуры.
+static void Scenario12_SmokeGray()
+{
+    Console.WriteLine("Смотрите: куб с серой фототекстурой gray_1024x1024, пол без текстуры.");
+    Console.WriteLine("Изображение чёрно-белое без цветовых остатков, без артефактов и зеркал.");
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.35f);
+    var cubeMaterial = new MaterialData();
+    var cube = new SceneObject(PrimitiveFactory.CreateCube(), cubeMaterial);
+    cube.Transform.Position = new Vector3(0f, 0.3f, 0f);
+    scene.Add(cube);
+    Add(scene, PrimitiveFactory.CreatePlane(12f, 12f), new ColorRgba(0.3f, 0.35f, 0.42f), new Vector3(0f, -1.2f, 0f));
+
+    var camera = new Camera { Position = new Vector3(0f, 2f, 6f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 8 smoke gray", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.6f;
+        cube.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, t);
+    }, onCreated: engine => cubeMaterial.Texture = engine.LoadTexture(AssetPath("sizes/gray_1024x1024.png")));
+}
+
+// Smoke-проверка серой фототекстуры, но куб неподвижен: вокруг него облетает камера.
+static void Scenario20_SmokeGrayOrbit()
+{
+    Console.WriteLine("Смотрите: неподвижный куб с серой фототекстурой gray_1024x1024; вокруг куба облетает камера.");
+    Console.WriteLine("Куб не вращается, меняется только ракурс. Ожидаем: чёрно-белая картинка без цветовых остатков и артефактов.");
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.35f);
+    var cubeMaterial = new MaterialData();
+    var cube = new SceneObject(PrimitiveFactory.CreateCube(), cubeMaterial);
+    cube.Transform.Position = new Vector3(0f, 0.3f, 0f);
+    scene.Add(cube);
+    Add(scene, PrimitiveFactory.CreatePlane(12f, 12f), new ColorRgba(0.3f, 0.35f, 0.42f), new Vector3(0f, -1.2f, 0f));
+
+    var camera = new Camera { Position = new Vector3(0f, 2f, 6f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 10 smoke gray orbit", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.5f;
+        camera.Position = new Vector3(MathF.Sin(t) * 6f, 1.6f + MathF.Sin(t * 0.6f) * 0.6f, MathF.Cos(t) * 6f);
+        camera.Target = new Vector3(0f, 0.3f, 0f);
+    }, onCreated: engine => cubeMaterial.Texture = engine.LoadTexture(AssetPath("sizes/gray_1024x1024.png")));
+}
+
+// Smoke-проверка цветной фототекстуры, но куб неподвижен: вокруг него облетает камера.
+static void Scenario21_SmokeRgbOrbit()
+{
+    Console.WriteLine("Смотрите: неподвижный куб с цветной фототекстурой rgb_1024x1024; вокруг куба облетает камера.");
+    Console.WriteLine("Куб не вращается, меняется только ракурс. Ожидаем: картинка не перевёрнута и не зеркальна, без артефактов.");
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.35f);
+    var cubeMaterial = new MaterialData();
+    var cube = new SceneObject(PrimitiveFactory.CreateCube(), cubeMaterial);
+    cube.Transform.Position = new Vector3(0f, 0.3f, 0f);
+    scene.Add(cube);
+    Add(scene, PrimitiveFactory.CreatePlane(12f, 12f), new ColorRgba(0.3f, 0.35f, 0.42f), new Vector3(0f, -1.2f, 0f));
+
+    var camera = new Camera { Position = new Vector3(0f, 2f, 6f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 11 smoke rgb orbit", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.5f;
+        camera.Position = new Vector3(MathF.Sin(t) * 6f, 1.6f + MathF.Sin(t * 0.6f) * 0.6f, MathF.Cos(t) * 6f);
+        camera.Target = new Vector3(0f, 0.3f, 0f);
+    }, onCreated: engine => cubeMaterial.Texture = engine.LoadTexture(AssetPath("sizes/rgb_1024x1024.png")));
+}
+
+// Ряд кубов с текстурами нестандартных размеров; имена загруженных файлов печатаются в консоль.
+static void Scenario13_WeirdSizes()
+{
+    Console.WriteLine("Смотрите: ряд кубов с текстурами нестандартных размеров.");
+    Console.WriteLine("Слева направо: rgb_67x67, rgb_1x1024, rgb_512x1024, gray_1x1, gray_1024x1, gray_1024x512, gray_1000x1000.");
+
+    string[] files =
+    [
+        "sizes/rgb_67x67.png",
+        "sizes/rgb_1x1024.png",
+        "sizes/rgb_512x1024.png",
+        "sizes/gray_1x1.png",
+        "sizes/gray_1024x1.png",
+        "sizes/gray_1024x512.png",
+        "sizes/gray_1000x1000.png",
+    ];
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.4f);
+    var materials = new MaterialData[files.Length];
+    for (int i = 0; i < files.Length; i++)
+    {
+        materials[i] = new MaterialData();
+        var item = new SceneObject(PrimitiveFactory.CreateCube(), materials[i]);
+        item.Transform.Position = new Vector3((i - (files.Length - 1) / 2f) * 2.2f, 0f, 0f);
+        item.Transform.Scale = new Vector3(1.5f);
+        scene.Add(item);
+    }
+
+    Add(scene, PrimitiveFactory.CreatePlane(30f, 30f), new ColorRgba(0.3f, 0.35f, 0.4f), new Vector3(0f, -1.6f, 0f));
+
+    var camera = new Camera { Position = new Vector3(0f, 2f, 8f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 13 weird sizes", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.5f;
+        camera.Position = new Vector3(MathF.Sin(t) * 12f, 2.2f + MathF.Sin(t * 1.3f), 8f);
+    }, onCreated: engine =>
+    {
+        for (int i = 0; i < files.Length; i++)
+        {
+            materials[i].Texture = engine.LoadTexture(AssetPath(files[i]));
+            Console.WriteLine($"  загружено: {files[i]}");
+        }
+    });
+}
+
+// Абстрактная композиция: поле вращающихся кубов с текстурами из Assets/random/, камера облетает сцену.
+static void Scenario14_AbstractCubes()
+{
+    Console.WriteLine("Смотрите: абстрактное поле кубов с текстурами из Assets/random/, камера облетает сцену.");
+    Console.WriteLine("Ожидаем: текстуры видны на гранях без артефактов и чёрных граней; облёт и вращение плавные.");
+
+    string[] files =
+    [
+        "random/metal.png",
+        "random/mosaic.png",
+        "random/stone.png",
+        "random/tiles.png",
+        "random/velvet.png",
+        "random/wood.png",
+    ];
+
+    var rng = new Random(20260512);
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.4f);
+    var materials = new MaterialData[files.Length];
+    for (int i = 0; i < files.Length; i++)
+        materials[i] = new MaterialData();
+
+    const int grid = 3;
+    var cubes = new List<SceneObject>();
+    for (int x = 0; x < grid; x++)
+    for (int y = 0; y < grid; y++)
+    for (int z = 0; z < grid; z++)
+    {
+        int idx = (x + y * grid + z * grid * grid) % files.Length;
+        var cube = new SceneObject(PrimitiveFactory.CreateCube(), materials[idx]);
+        float jitter = (float)(rng.NextDouble() * 1.4 - 0.7);
+        cube.Transform.Position = new Vector3((x - 1) * 3.4f, (y - 1) * 3.4f, (z - 1) * 3.4f + jitter);
+        cube.Transform.Scale = new Vector3(1.5f + (float)rng.NextDouble() * 1.0f);
+        scene.Add(cube);
+        cubes.Add(cube);
+    }
+
+    var camera = new Camera { Position = new Vector3(0f, 0f, 15f), Target = Vector3.Zero };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 14 abstract cubes", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds;
+        foreach (SceneObject cube in cubes)
+        {
+            cube.Transform.Rotation =
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, t * 0.5f) *
+                Quaternion.CreateFromAxisAngle(Vector3.UnitX, t * 0.33f);
+        }
+
+        camera.Position = new Vector3(MathF.Sin(t * 0.35f) * 13f, MathF.Sin(t * 0.6f) * 5f, MathF.Cos(t * 0.35f) * 13f);
+        camera.Target = new Vector3(MathF.Sin(t * 0.2f) * 3f, 0f, 0f);
+    }, onCreated: engine =>
+    {
+        for (int i = 0; i < files.Length; i++)
+        {
+            materials[i].Texture = engine.LoadTexture(AssetPath(files[i]));
+            Console.WriteLine($"  загружено: {files[i]}");
+        }
+    });
+}
+
+// Поле текстурированных кубов; направленный свет облетает сцену, день сменяется ночью.
+static void Scenario15_MovingLightCubes()
+{
+    Console.WriteLine("Смотрите: поле кубов с текстурами; направленный свет облетает сцену, «день» сменяется «ночью».");
+    Console.WriteLine("Ожидаем: грани плавно светлеют и темнеют по мере движения света, текстуры читаются, без резких скачков.");
+
+    string[] files =
+    [
+        "random/wood.png",
+        "random/stone.png",
+        "random/mosaic.png",
+        "random/velvet.png",
+        "random/tiles.png",
+        "random/metal.png",
+    ];
+
+    var scene = NewLitScene();
+    var materials = new MaterialData[files.Length];
+    for (int i = 0; i < files.Length; i++)
+        materials[i] = new MaterialData();
+
+    const int grid = 3;
+    for (int x = 0; x < grid; x++)
+    for (int z = 0; z < grid; z++)
+    {
+        int idx = (x + z * grid) % files.Length;
+        var cube = new SceneObject(PrimitiveFactory.CreateCube(), materials[idx]);
+        cube.Transform.Position = new Vector3((x - 1) * 3.6f, 1f, (z - 1) * 3.6f);
+        cube.Transform.Scale = new Vector3(2f);
+        scene.Add(cube);
+    }
+
+    var camera = new Camera { Position = new Vector3(0f, 9f, 16f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 15 moving light", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.6f;
+        scene.Lighting.Direction = new Vector3(MathF.Cos(t), -0.6f, MathF.Sin(t));
+
+        float day = MathF.Sin(t * 0.5f) * 0.5f + 0.5f;
+        scene.Lighting.DirectionalColor = Vector3.Lerp(new Vector3(0.15f, 0.2f, 0.4f), new Vector3(1f, 0.95f, 0.8f), day);
+        scene.Lighting.AmbientColor = new Vector3(0.08f + 0.12f * day);
+    }, onCreated: engine =>
+    {
+        for (int i = 0; i < files.Length; i++)
+        {
+            materials[i].Texture = engine.LoadTexture(AssetPath(files[i]));
+            Console.WriteLine($"  загружено: {files[i]}");
+        }
+    });
+}
+
+// Сто кубов (10×10) с чередующимися текстурами, каждый вращается вокруг своей оси; освещение дефолтное.
+static void Scenario18_RotatingCubeField()
+{
+    Console.WriteLine("Смотрите: 100 кубов (10×10) с чередующимися текстурами wood/stone, каждый вращается вокруг своей оси.");
+    Console.WriteLine("Освещение дефолтное. Ожидаем: чередование текстур как шахматное поле; вращение ровное, без мерцания.");
+
+    var scene = NewLitScene();
+    var materials = new[]
+    {
+        new MaterialData(),
+        new MaterialData(),
+    };
+
+    var cubes = new List<SceneObject>();
+    const int grid = 10;
+    for (int x = 0; x < grid; x++)
+    for (int z = 0; z < grid; z++)
+    {
+        int idx = (x + z) & 1;
+        var cube = new SceneObject(PrimitiveFactory.CreateCube(), materials[idx]);
+        cube.Transform.Position = new Vector3((x - (grid - 1) / 2f) * 2.3f, 0.6f, (z - (grid - 1) / 2f) * 2.3f);
+        cube.Transform.Scale = new Vector3(1.5f);
+        scene.Add(cube);
+        cubes.Add(cube);
+    }
+
+    var axes = new[]
+    {
+        Vector3.UnitY,
+        Vector3.UnitX,
+        Vector3.UnitZ,
+        Vector3.Normalize(new Vector3(1f, 1f, 0f)),
+        Vector3.Normalize(new Vector3(1f, 0f, 1f)),
+        Vector3.Normalize(new Vector3(0f, 1f, 1f)),
+    };
+
+    var camera = new Camera { Position = new Vector3(0f, 14f, 18f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 14 rotating cube field", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds;
+        for (int i = 0; i < cubes.Count; i++)
+        {
+            float speed = 0.6f + (i % 5) * 0.15f;
+            cubes[i].Transform.Rotation = Quaternion.CreateFromAxisAngle(axes[i % axes.Length], t * speed);
+        }
+
+        camera.Position = new Vector3(MathF.Sin(t * 0.25f) * 20f, 12f + MathF.Sin(t * 0.13f) * 2f, MathF.Cos(t * 0.25f) * 20f);
+        camera.Target = new Vector3(0f, 0f, 0f);
+    }, onCreated: engine =>
+    {
+        materials[0].Texture = engine.LoadTexture(AssetPath("random/wood.png"));
+        materials[1].Texture = engine.LoadTexture(AssetPath("random/stone.png"));
+        Console.WriteLine("  загружено: random/wood.png, random/stone.png");
+    });
+}
+
+// Шахматная доска 8×8: клетки — плоские кубы с текстурами tiles/stone, фигуры — кубы поменьше с wood/metal.
+static void Scenario19_Chessboard()
+{
+    Console.WriteLine("Смотрите: шахматная доска 8×8; клетки — кубы с текстурами tiles/stone, фигуры — кубы с wood/metal.");
+    Console.WriteLine("Ожидаем: клетки чередуются как на доске, фигуры двух цветов стоят на крайних рядах, текстуры не перепутаны.");
+
+    var scene = NewLitScene();
+    var cellLight = new MaterialData();
+    var cellDark = new MaterialData();
+    var pieceWhite = new MaterialData();
+    var pieceBlack = new MaterialData();
+
+    const int size = 8;
+    for (int x = 0; x < size; x++)
+    for (int z = 0; z < size; z++)
+    {
+        var cell = new SceneObject(PrimitiveFactory.CreateCube(), (x + z) % 2 == 0 ? cellLight : cellDark);
+        cell.Transform.Position = new Vector3((x - (size - 1) / 2f) * 1.1f, 0.05f, (z - (size - 1) / 2f) * 1.1f);
+        cell.Transform.Scale = new Vector3(1.06f, 0.1f, 1.06f);
+        scene.Add(cell);
+    }
+
+    for (int x = 0; x < size; x++)
+    {
+        var sideA = new SceneObject(PrimitiveFactory.CreateCube(), pieceWhite);
+        sideA.Transform.Position = new Vector3((x - (size - 1) / 2f) * 1.1f, 0.32f, -(size - 1) / 2f * 1.1f);
+        sideA.Transform.Scale = new Vector3(0.55f);
+        scene.Add(sideA);
+
+        var sideB = new SceneObject(PrimitiveFactory.CreateCube(), pieceBlack);
+        sideB.Transform.Position = new Vector3((x - (size - 1) / 2f) * 1.1f, 0.32f, (size - 1) / 2f * 1.1f);
+        sideB.Transform.Scale = new Vector3(0.55f);
+        scene.Add(sideB);
+    }
+
+    var camera = new Camera { Position = new Vector3(0f, 9f, 11f), Target = new Vector3(0f, 0.2f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 15 chessboard", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.4f;
+        camera.Position = new Vector3(MathF.Sin(t) * 11f, 8f + MathF.Sin(t * 0.6f) * 1.5f, MathF.Cos(t) * 11f);
+        camera.Target = new Vector3(0f, 0.2f, 0f);
+    }, onCreated: engine =>
+    {
+        cellLight.Texture = engine.LoadTexture(AssetPath("random/tiles.png"));
+        cellDark.Texture = engine.LoadTexture(AssetPath("random/stone.png"));
+        pieceWhite.Texture = engine.LoadTexture(AssetPath("random/wood.png"));
+        pieceBlack.Texture = engine.LoadTexture(AssetPath("random/metal.png"));
+        Console.WriteLine("  загружено: tiles, stone (клетки), wood, metal (фигуры)");
+    });
+}
+
+// Эмблема Dota 2 из кубов: растеризация упрощённого лого (плита + белые угловые росчерки) по сетке.
+static void Scenario22_Dota2Logo()
+{
+    Console.WriteLine("Смотрите: эмблема Dota 2 из кубов. Кубы стоят на месте, камера облетает лого.");
+    Console.WriteLine("Форма лого берётся из упрощённого SVG (Wikimedia Commons, CC BY-SA 4.0), кубы — со случайными текстурами.");
+
+    bool Inside((float X, float Y) point, (float X, float Y)[] poly)
+    {
+        bool inside = false;
+        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+        {
+            bool crosses = poly[i].Y > point.Y != poly[j].Y > point.Y
+                && point.X < (poly[j].X - poly[i].X) * (point.Y - poly[i].Y) / (poly[j].Y - poly[i].Y) + poly[i].X;
+            if (crosses)
+                inside = !inside;
+        }
+
+        return inside;
+    }
+
+    (float X, float Y)[] mainSlash = { (95, 145.5f), (149, 115), (510, 421), (474, 507), (361, 481) };
+    (float X, float Y)[] hornTop = { (430, 95), (514, 172), (390, 130) };
+    (float X, float Y)[] hornLow = { (100, 430), (228, 483), (95, 515) };
+
+    var scene = NewLitScene();
+    scene.Lighting.AmbientColor = new Vector3(0.35f);
+
+    var plateMaterial = new MaterialData { BaseColor = new ColorRgba(0.9f, 0.4f, 0.38f) };
+    var plate = new SceneObject(PrimitiveFactory.CreateCube(), plateMaterial);
+    plate.Transform.Position = new Vector3(0f, 0f, -0.3f);
+    plate.Transform.Scale = new Vector3(4.3f, 4.3f, 0.5f);
+    scene.Add(plate);
+
+    string[] textures =
+    [
+        "random/wood.png",
+        "random/stone.png",
+        "random/mosaic.png",
+        "random/tiles.png",
+        "random/metal.png",
+    ];
+    var materials = new MaterialData[textures.Length];
+    for (int i = 0; i < textures.Length; i++)
+        materials[i] = new MaterialData();
+
+    var rng = new Random(1234567);
+    const int n = 24;
+    float cell = 4f / n;
+    int count = 0;
+    for (int r = 0; r < n; r++)
+    for (int c = 0; c < n; c++)
+    {
+        float svgX = 32f + (c + 0.5f) / n * 540f;
+        float svgY = 28.5f + (r + 0.5f) / n * 540f;
+        (float X, float Y) p = (svgX, svgY);
+        if (!Inside(p, mainSlash) && !Inside(p, hornTop) && !Inside(p, hornLow))
+            continue;
+
+        MaterialData cellMaterial = materials[rng.Next(textures.Length)];
+
+        var cube = new SceneObject(PrimitiveFactory.CreateCube(), cellMaterial);
+        cube.Transform.Position = new Vector3((c - (n - 1) / 2f) * cell, ((n - 1) / 2f - r) * cell, 0f);
+        cube.Transform.Scale = new Vector3(0.16f);
+        scene.Add(cube);
+
+        var backCube = new SceneObject(PrimitiveFactory.CreateCube(), cellMaterial);
+        backCube.Transform.Position = new Vector3((c - (n - 1) / 2f) * cell, ((n - 1) / 2f - r) * cell, -0.6f);
+        backCube.Transform.Scale = new Vector3(0.16f);
+        scene.Add(backCube);
+
+        count += 2;
+    }
+
+    Console.WriteLine($"  Кубы эмблемы: {count} (по {count / 2} с каждой стороны плиты).");
+
+    var camera = new Camera { Position = new Vector3(0f, 1f, 6f), Target = new Vector3(0f, 0f, 0f) };
+    float t = 0f;
+    RunWindow("Engine3D #10 - 17 dota 2 logo", scene, camera, onUpdate: deltaSeconds =>
+    {
+        t += deltaSeconds * 0.35f;
+        camera.Position = new Vector3(MathF.Sin(t) * 6f, 1.2f + MathF.Sin(t * 0.5f) * 0.6f, MathF.Cos(t) * 6f);
+        camera.Target = Vector3.Zero;
+    }, onCreated: engine =>
+    {
+        plateMaterial.Texture = engine.LoadTexture(AssetPath("random/velvet.png"));
+        Console.WriteLine("  загружено: random/velvet.png (фон)");
+        for (int i = 0; i < textures.Length; i++)
+        {
+            materials[i].Texture = engine.LoadTexture(AssetPath(textures[i]));
+            Console.WriteLine($"  загружено: {textures[i]}");
+        }
     });
 }
 
