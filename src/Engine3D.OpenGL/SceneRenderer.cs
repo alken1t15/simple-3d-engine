@@ -6,7 +6,7 @@ namespace Engine3D.OpenGL;
 /// <summary>
 /// Отрисовка подготовленного кадра: шейдер, GPU-кэш мешей, depth test и базовый свет (P0-10): фоновый плюс один
 /// направленный источник с рассеянной составляющей. RGB = baseColor * texture * (ambient + light * max(dot(n, −dir), 0)),
-/// ограниченный [0, 1]; без текстуры множитель (1, 1, 1). Загрузку текстур на GPU подключает #10.
+/// ограниченный [0, 1]; без текстуры множитель (1, 1, 1).
 /// </summary>
 internal sealed class SceneRenderer
 {
@@ -68,13 +68,16 @@ internal sealed class SceneRenderer
         """;
 
     private readonly ShaderProgram _shader;
+    private readonly GpuTexture _whiteTexture;
     private readonly GpuResourceCache<MeshData, GpuMesh> _meshes = new(mesh => new GpuMesh(mesh));
+    private readonly GpuResourceCache<TextureData, GpuTexture> _textures = new(texture => new GpuTexture(texture));
     private readonly int _modelLocation;
     private readonly int _normalTransformLocation;
     private readonly int _viewLocation;
     private readonly int _projectionLocation;
     private readonly int _baseColorLocation;
     private readonly int _hasTextureLocation;
+    private readonly int _textureLocation;
     private readonly int _ambientColorLocation;
     private readonly int _lightColorLocation;
     private readonly int _lightDirectionLocation;
@@ -91,9 +94,13 @@ internal sealed class SceneRenderer
             _projectionLocation = _shader.GetUniformLocation("u_projection");
             _baseColorLocation = _shader.GetUniformLocation("u_baseColor");
             _hasTextureLocation = _shader.GetUniformLocation("u_hasTexture");
+            _textureLocation = _shader.GetUniformLocation("u_texture");
             _ambientColorLocation = _shader.GetUniformLocation("u_ambientColor");
             _lightColorLocation = _shader.GetUniformLocation("u_lightColor");
             _lightDirectionLocation = _shader.GetUniformLocation("u_lightDirection");
+            // Даже неиспользуемый в ветке sampler должен иметь complete texture на некоторых драйверах macOS.
+            // Служебная белая текстура не входит в счетчик пользовательского кэша.
+            _whiteTexture = new GpuTexture(new TextureData(1, 1, [255, 255, 255, 255]));
 
             // Непрозрачные объекты, корректное перекрытие по глубине. Back-face culling в базовой версии выключен.
             GL.Enable(EnableCap.DepthTest);
@@ -101,6 +108,7 @@ internal sealed class SceneRenderer
         }
         catch
         {
+            _whiteTexture?.Dispose();
             _shader.Dispose();
             throw;
         }
@@ -108,6 +116,8 @@ internal sealed class SceneRenderer
 
     /// <summary>Число GPU-мешей в кэше: у многих объектов с общим MeshData оно равно 1.</summary>
     public int MeshCount => _meshes.Count;
+
+    public int TextureCount => _textures.Count;
 
     public void Render(Scene scene, FramePreparation frame, int framebufferWidth, int framebufferHeight)
     {
@@ -124,7 +134,7 @@ internal sealed class SceneRenderer
         GL.Uniform3(_ambientColorLocation, lighting.AmbientColor.X, lighting.AmbientColor.Y, lighting.AmbientColor.Z);
         GL.Uniform3(_lightColorLocation, lighting.DirectionalColor.X, lighting.DirectionalColor.Y, lighting.DirectionalColor.Z);
         GL.Uniform3(_lightDirectionLocation, frame.LightDirection.X, frame.LightDirection.Y, frame.LightDirection.Z);
-        GL.Uniform1(_hasTextureLocation, 0); // GPU-текстуры подключает #10; до этого материал рисуется цветом
+        GL.Uniform1(_textureLocation, 0); // sampler использует texture unit 0, не GPU handle
 
         var objects = scene.Objects;
         var models = frame.Models;
@@ -134,6 +144,16 @@ internal sealed class SceneRenderer
             var item = objects[i];
             var mesh = _meshes.GetOrCreate(item.Mesh);
             var color = item.Material.BaseColor;
+            if (item.Material.Texture is { } texture)
+            {
+                _textures.GetOrCreate(texture).Bind();
+                GL.Uniform1(_hasTextureLocation, 1);
+            }
+            else
+            {
+                _whiteTexture.Bind();
+                GL.Uniform1(_hasTextureLocation, 0);
+            }
 
             ShaderProgram.SetMatrix(_modelLocation, models[i]);
             ShaderProgram.SetMatrix(_normalTransformLocation, normalTransforms[i]);
@@ -142,12 +162,22 @@ internal sealed class SceneRenderer
         }
 
         GL.BindVertexArray(0);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 
-    /// <summary>Удаляет GPU-меши и шейдер; ошибки собираются, удаление продолжается.</summary>
+    /// <summary>Удаляет GPU-меши, текстуры и шейдер; ошибки собираются, удаление продолжается.</summary>
     public void Release(List<Exception> errors)
     {
         _meshes.DisposeAll(errors);
+        _textures.DisposeAll(errors);
+        try
+        {
+            _whiteTexture.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
         try
         {
             _shader.Dispose();
