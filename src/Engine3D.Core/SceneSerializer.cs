@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace Engine3D.Core;
@@ -9,6 +10,8 @@ namespace Engine3D.Core;
 /// </summary>
 public static class SceneSerializer
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     /// <summary>
     /// Сохраняет примитивы, объекты (transform, базовый цвет и путь текстуры), камеру и свет. Сначала проверяет сцену
     /// и строит весь JSON в памяти, затем пишет файл в UTF-8: при неверной сцене файл не изменяется. Общий меш
@@ -54,7 +57,7 @@ public static class SceneSerializer
     /// <exception cref="IOException">Ошибка чтения, например файл или каталог не существует.</exception>
     /// <exception cref="UnauthorizedAccessException">Нет доступа к файлу.</exception>
     /// <exception cref="InvalidDataException">
-    /// Неверный JSON (исходная <see cref="JsonException"/> — InnerException), неподдерживаемые версия или kind,
+    /// Поврежденная кодировка UTF-8 или неверный JSON (исходная ошибка — InnerException), неподдерживаемые версия или kind,
     /// отсутствующие или неверные поля, повтор id меша или ссылка на неописанный меш, абсолютный путь текстуры.
     /// Сообщение содержит путь файла, место в документе и причину.
     /// </exception>
@@ -64,7 +67,7 @@ public static class SceneSerializer
     public static SceneSnapshot Load(string path, Func<string, TextureData>? textureLoader = null)
     {
         string fullPath = GetFullFilePath(path);
-        string json = File.ReadAllText(fullPath); // UTF-8; BOM, если есть, отбрасывается
+        string json = ReadUtf8(fullPath);
 
         SceneDocument? document;
         try
@@ -80,6 +83,23 @@ public static class SceneSerializer
             throw SceneRestorer.InvalidDocument(fullPath, "$", "expected a scene object, got null.");
 
         return SceneRestorer.Restore(document, fullPath, textureLoader);
+    }
+
+    // Строгий UTF-8: File.ReadAllText заменил бы поврежденные байты символом U+FFFD, и испорченный файл стал бы другим
+    // допустимым документом — например, с другим путем текстуры. BOM UTF-8 допускается и отбрасывается.
+    private static string ReadUtf8(string fullPath)
+    {
+        byte[] bytes = File.ReadAllBytes(fullPath);
+        ReadOnlySpan<byte> bom = [0xEF, 0xBB, 0xBF];
+        int start = bytes.AsSpan().StartsWith(bom) ? bom.Length : 0;
+        try
+        {
+            return StrictUtf8.GetString(bytes, start, bytes.Length - start);
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw SceneRestorer.InvalidDocument(fullPath, "$", $"the file is not valid UTF-8: {exception.Message}", exception);
+        }
     }
 
     private static string GetFullFilePath(string path)
