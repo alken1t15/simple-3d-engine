@@ -71,7 +71,11 @@ internal static class PngIntegrity
         // не сохраняется. Верхняя граница: RGBA16 (8 байт/пиксель) + строки фильтров всех 7 Adam7-проходов.
         ulong limit = (ulong)width * (ulong)height * 8 + (ulong)height * 7;
         ulong total = 0;
-        using var zlib = new ZLibStream(compressed, CompressionMode.Decompress, leaveOpen: true);
+        // ZLibStream принимает EOF исходного потока даже без полного Adler-32. Не отдаём ему такой EOF:
+        // корректный inflater возвращает 0 сам, достигнув Z_STREAM_END, без нового чтения исходного потока.
+        // Если inflater всё ещё требует вход, отсутствие байтов — повреждение, а не успешное завершение.
+        using var input = new RequireCompleteZlibStream(compressed);
+        using var zlib = new ZLibStream(input, CompressionMode.Decompress, leaveOpen: true);
         Span<byte> buffer = stackalloc byte[4096];
         try
         {
@@ -87,6 +91,37 @@ internal static class PngIntegrity
         {
             throw new InvalidDataException("PNG IDAT has invalid zlib data or Adler-32 checksum.", exception);
         }
+    }
+
+    /// <summary>Запрещает inflater подменять завершение zlib физическим EOF (буферизация не влияет на проверку).</summary>
+    private sealed class RequireCompleteZlibStream(Stream source) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (buffer.IsEmpty)
+                return 0;
+            int count = source.Read(buffer);
+            if (count == 0)
+                throw new InvalidDataException("PNG IDAT has an incomplete zlib stream or missing Adler-32 trailer.");
+            return count;
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static uint Crc(ReadOnlySpan<byte> bytes)

@@ -14,6 +14,59 @@ public sealed class TextureDecoderTests
     private const string StoredPng = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAYAAAD5PA/NAAAAHElEQVR4AQERAO7/ABAgMP8QIDD/ECAw/xAgMP8o9QV9b5nPpgAAAABJRU5ErkJggg==";
     private const string BadAdlerPng = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAYAAAD5PA/NAAAAHElEQVR4AQERAO7/ABAgMP8QIDD/ECAw/xAgMP8o9QV8GJ7/MAAAAABJRU5ErkJggg==";
 
+    // Собственная RGBA8 PNG 2×2, zlib Python: CRC и длины IDAT пересчитаны после усечения Adler.
+    // Поэтому повреждение нельзя выявить только по границам/CRC PNG; вариант -4 совпадает с fixture ревью.
+    [TestMethod]
+    [DataRow(1, "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwHwyBNBgAAEnICR0DEk0AAAAASUVORK5CYII=")]
+    [DataRow(2, "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGP4z8DwHwyBNBgAAEnIu2hZPwAAAABJRU5ErkJggg==")]
+    [DataRow(3, "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAD0lEQVR4nGP4z8DwHwyBNBgAAElsdExbAAAAAElFTkSuQmCC")]
+    [DataRow(4, "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADklEQVR4nGP4z8DwHwyBNBgAAH2zxjsAAAAASUVORK5CYII=")]
+    [DataRow(4, "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGUlEQVR4AQESAO3/AP8AAP8A/wD/AAAA////////4thOpQAAAABJRU5ErkJggg==")]
+    public void Missing_Adler_bytes_are_rejected_even_with_valid_chunk_CRC(int removedBytes, string png)
+    {
+        byte[] bytes = Convert.FromBase64String(png);
+        using (var compressed = PngIntegrity.ReadImageData(bytes))
+            Assert.IsGreaterThan(0L, compressed.Length, "Fixture must pass PNG boundaries and CRC validation.");
+        string path = Path.Combine(Path.GetTempPath(), $"missing-adler-{removedBytes}-{Guid.NewGuid():N}.png");
+        try
+        {
+            File.WriteAllBytes(path, bytes);
+            var error = Assert.ThrowsExactly<InvalidDataException>(() => TextureDecoder.Load(path));
+            Assert.Contains(path, error.Message);
+            Assert.Contains("Adler-32", error.Message);
+            Assert.IsFalse(error.Message.Any(char.IsControl));
+            Assert.IsNotNull(error.InnerException);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR4nGP4z8DwHwyBNBgAAEnICff5q7YNAAAAAElFTkSuQmCC")]
+    [DataRow("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGP4z8DwHwyBNBgAAEnIu2hZPwAAAAJJREFUCfeO4GFMAAAAAElFTkSuQmCC")]
+    public void Complete_zlib_is_accepted_with_Adler_split_across_IDAT_chunks(string png)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"complete-adler-{Guid.NewGuid():N}.png");
+        try
+        {
+            File.WriteAllBytes(path, Convert.FromBase64String(png));
+            var texture = TextureDecoder.Load(path);
+            Assert.AreEqual(2, texture.Width);
+            Assert.AreEqual(2, texture.Height);
+            CollectionAssert.AreEqual(new byte[]
+            {
+                255, 0, 0, 255, 0, 255, 0, 255,
+                0, 0, 255, 255, 255, 255, 255, 255,
+            }, texture.Pixels.ToArray());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [TestMethod]
     [DataRow("missing IEND")]
     [DataRow("truncated IDAT")]
