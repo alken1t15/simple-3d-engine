@@ -9,8 +9,9 @@ namespace Engine3D.Core;
 /// <summary>
 /// Документ JSON сцены, схема version=1 (docs/api.md, раздел 9): внутренние DTO из чисел, массивов и строк.
 /// Типы System.Numerics и граф доменных объектов напрямую не сериализуются. При чтении System.Text.Json проверяет
-/// наличие обязательных полей, null у свойств, типы значений и повторные ключи; null-элементы массивов, длины массивов,
-/// конечность и диапазоны чисел и ссылки на меши проверяет <see cref="SceneRestorer"/>.
+/// наличие обязательных полей, null у свойств, типы значений и повторы известных полей (неизвестные свойства, в том
+/// числе повторные, игнорируются); null-элементы массивов, длины массивов, конечность и диапазоны чисел и ссылки на
+/// меши проверяет <see cref="SceneRestorer"/>.
 /// </summary>
 internal sealed class SceneDocument
 {
@@ -21,7 +22,7 @@ internal sealed class SceneDocument
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         RespectNullableAnnotations = true, // null допустим только там, где это разрешает тип: texturePath и размеры меша
-        AllowDuplicateProperties = false, // повторный ключ — неверный документ, а не «побеждает последний»
+        AllowDuplicateProperties = false, // повтор известного поля — неверный документ; неизвестные свойства пропускаются целиком
         WriteIndented = true,
         NewLine = "\n",
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // файл не встраивается в HTML: кириллица и '+' в путях как есть
