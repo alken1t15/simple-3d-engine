@@ -60,7 +60,7 @@ public sealed partial class CpuScenarioTests
         var direction = cubeWorld - camera.Position;
         float t = (floor.Transform.Position.Y - camera.Position.Y) / direction.Y;
         var floorWorld = camera.Position + t * direction;
-        Assert.IsGreaterThan(1f, t, "пол должен лежать за кубом на луче камеры");
+        Assert.IsGreaterThan(1f, t, "the floor must lie behind the cube on the camera ray");
 
         // P лежит в пределах фактической сетки пола, а не только бесконечной плоскости.
         var floorLocal = floorWorld - floor.Transform.Position;
@@ -115,7 +115,7 @@ public sealed partial class CpuScenarioTests
 
     private static Vector3 ToNdc(Vector4 clip)
     {
-        Assert.IsGreaterThan(0f, clip.W, $"w = {clip.W} (точка за камерой)");
+        Assert.IsGreaterThan(0f, clip.W, $"w = {clip.W} (point behind the camera)");
         return new Vector3(clip.X, clip.Y, clip.Z) / clip.W;
     }
 

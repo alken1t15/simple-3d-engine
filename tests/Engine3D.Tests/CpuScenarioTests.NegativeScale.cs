@@ -21,9 +21,8 @@ public sealed partial class CpuScenarioTests
     [DataRow(-2f, -0.5f, 1f, 1, DisplayName = "два отражения = поворот: снова CCW")]
     public void Mirrored_cube_keeps_outward_normals_and_flips_winding(float sx, float sy, float sz, int expectedOrientation)
     {
-        var transform = CreateTransform(new(sx, sy, sz), new(0.3f, 1f, -0.2f), 0.9f, new(4f, -1f, 2f));
-
-        var triangles = PrepareWorldTriangles(PrimitiveFactory.CreateCube(), transform, out var worldCenter);
+        var triangles = PrepareWorldTriangles(
+            PrimitiveFactory.CreateCube(), new(sx, sy, sz), new(0.3f, 1f, -0.2f), 0.9f, new(4f, -1f, 2f), out var worldCenter);
 
         Assert.HasCount(12, triangles);
         AssertSurfaceAfterTransform(triangles, worldCenter, expectedOrientation);
@@ -42,9 +41,8 @@ public sealed partial class CpuScenarioTests
     public void Tetrahedron_oblique_faces_keep_perpendicular_outward_normals_under_mirrored_nonuniform_scale(
         float sx, float sy, float sz, int expectedOrientation)
     {
-        var transform = CreateTransform(new(sx, sy, sz), new(1f, -0.4f, 0.7f), 1.1f, new(-6f, 3f, 0.5f));
-
-        var triangles = PrepareWorldTriangles(CreateTetrahedron(), transform, out var worldCenter);
+        var triangles = PrepareWorldTriangles(
+            CreateTetrahedron(), new(sx, sy, sz), new(1f, -0.4f, 0.7f), 1.1f, new(-6f, 3f, 0.5f), out var worldCenter);
 
         Assert.HasCount(4, triangles);
         AssertSurfaceAfterTransform(triangles, worldCenter, expectedOrientation);
@@ -92,7 +90,7 @@ public sealed partial class CpuScenarioTests
             foreach (var normal in triangle.Normals)
             {
                 Assert.AreEqual(expectedOrientation, triangle.OrientationSign(normal),
-                    $"triangle {t}: знак обхода относительно нормали {normal}");
+                    $"triangle {t}: winding sign relative to normal {normal}");
                 AssertPerpendicularToEdges(normal, triangle, $"triangle {t}");
                 AssertOutward(normal, triangle.Center, worldCenter, $"triangle {t}");
             }
