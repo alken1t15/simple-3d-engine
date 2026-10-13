@@ -12,7 +12,10 @@ using Engine3D.OpenGL;
 //   --only N [N...]   то же, но только для перечисленных кейсов;
 //   --from N          тот же ручной прогон, что и без аргументов, но начиная с кейса N;
 //   --nth N           открыть только N-й сценарий в окне (N = 1..scenarios.Length);
-//   --all             прогнать все сценарии по очереди без вопросов (окно закрывает человек).
+//   --all             прогнать все сценарии по очереди без вопросов (окно закрывает человек);
+//   --save PATH       сохранить сцену в JSON при закрытии окна (без флага не сохраняется);
+//   --load PATH       загрузить сцену из JSON и показать её.
+// Space в терминале ставит сцену на паузу и снимает её, Esc закрывает окно (при --save — с сохранением).
 // Кейсы и их порядок совпадают с массивом scenarios. Отдельный сценарий запускается в дочернем
 // процессе, чтобы родительский мог параллельно читать y/n из терминала.
 // Это не демо-приложение #11: файл предназначен только для ручной проверки.
@@ -254,7 +257,58 @@ if (fromAt >= 0)
     cliArgs.RemoveRange(fromAt, 2);
 }
 
+// --save PATH: сохранить сцену в файл при закрытии окна. Без флага сцена не пишется.
+int saveAt = cliArgs.IndexOf("--save");
+if (saveAt >= 0)
+{
+    if (saveAt + 1 >= cliArgs.Count)
+    {
+        Console.WriteLine("--save: ожидается путь к файлу JSON.");
+        return 1;
+    }
+
+    WindowConfig.SavePath = cliArgs[saveAt + 1];
+    cliArgs.RemoveRange(saveAt, 2);
+}
+
+// --load PATH: показать ранее сохранённую сцену отдельным режимом (Engine нужен для LoadTexture).
+string? loadPath = null;
+int loadAt = cliArgs.IndexOf("--load");
+if (loadAt >= 0)
+{
+    if (loadAt + 1 >= cliArgs.Count)
+    {
+        Console.WriteLine("--load: ожидается путь к файлу JSON.");
+        return 1;
+    }
+
+    loadPath = cliArgs[loadAt + 1];
+    cliArgs.RemoveRange(loadAt, 2);
+}
+
 args = [.. cliArgs];
+
+if (loadPath is not null)
+{
+    using var engine = CreateEngine("Engine3D — сохранённая сцена");
+    SceneSnapshot snapshot = SceneSerializer.Load(loadPath, engine.LoadTexture);
+    Console.WriteLine($"  Загружено: {loadPath}. Окно открыто, закройте его.");
+    ConsoleInput.BeginWindow();
+    ConsoleInput.EnsureStarted();
+    engine.Run(snapshot.Scene, snapshot.Camera, _ =>
+    {
+        if (ConsoleInput.CloseRequested)
+            engine.RequestClose();
+    });
+    Console.WriteLine($"  Окно закрыто. Показано кадров: {engine.RenderedFrames}.");
+    return 0;
+}
+
+if (args.Length == 0 && WindowConfig.SavePath is not null)
+{
+    Console.WriteLine("--save требует режим прогона, например --nth N.");
+    return 1;
+}
 
 if (args.Length == 0)
     return await GuidedAsync(from is { } start ? FromIndex(start, scenarios.Length) : AllIndices(scenarios.Length), scenarios, descriptions, outDir);
@@ -344,6 +398,9 @@ static void PrintUsage(int count)
     Console.WriteLine("  dotnet run --project src/Engine3D.Demo --configuration Release -- --all");
     Console.WriteLine("  ... -- --from N   ручной прогон, начиная с кейса N (без флага — с первого)");
     Console.WriteLine("  ... -- --position X,Y   положение окна в пунктах от левого верхнего угла (по умолчанию 0,40)");
+    Console.WriteLine("  ... -- --save PATH   сохранить сцену в JSON при закрытии окна (с --nth N и т. п.);");
+    Console.WriteLine("  ... -- --load PATH   загрузить сцену из JSON и показать её.");
+    Console.WriteLine("  Space в терминале ставит сцену на паузу и снимает её, Esc закрывает окно.");
     Console.WriteLine("  Без --position окно открывается там, где вы оставили предыдущее (запоминается после каждого кейса).");
 }
 
@@ -538,6 +595,7 @@ static Scene NewLitScene()
 }
 
 // Показывает сцену в отдельном окне до тех пор, пока окно не закроют, и печатает счетчик кадров.
+// Space в терминале переключает паузу, Esc закрывает окно. При заданном --save сцена сохраняется при закрытии.
 // onCreated вызывается после создания Engine и до Run — единственное место, где валиден LoadTexture.
 // Пока окно открыто, его текущее положение и размер пишутся в файл, чтобы следующее окно (следующий кейс
 // или повторный запуск) открылось там же, где пользователь оставил предыдущее — включая ручной перетаскиванием.
@@ -558,12 +616,24 @@ static void RunWindow(string title, Scene scene, Camera camera, Action<float>? o
         }
     }
 
+    ConsoleInput.BeginWindow();
+    ConsoleInput.EnsureStarted();
     engine.Run(scene, camera, deltaSeconds =>
     {
-        onUpdate?.Invoke(deltaSeconds);
+        if (ConsoleInput.CloseRequested)
+            engine.RequestClose();
+        else if (!ConsoleInput.Paused)
+            onUpdate?.Invoke(deltaSeconds);
         PersistPlacement();
     });
     PersistPlacement();
+
+    if (WindowConfig.SavePath is { } savePath)
+    {
+        SceneSerializer.Save(savePath, scene, camera);
+        Console.WriteLine($"  Сцена сохранена: {savePath}");
+    }
+
     Console.WriteLine($"  Окно закрыто. Показано кадров: {engine.RenderedFrames}.");
 }
 
@@ -1272,10 +1342,65 @@ static void Scenario22_Dota2Logo()
     });
 }
 
+static class ConsoleInput
+{
+    private static volatile bool s_paused;
+    private static volatile bool s_closeRequested;
+    private static bool s_started;
+
+    public static bool Paused => s_paused;
+    public static bool CloseRequested => s_closeRequested;
+
+    // Сброс между окнами (--all): иначе Esc/пауза первого окна повлияют на следующее.
+    public static void BeginWindow()
+    {
+        s_paused = false;
+        s_closeRequested = false;
+    }
+
+    // Space из терминала переключает паузу, Esc — закрытие окна (совместно с сохранением при --save).
+    // Окно фокус не забирает (FocusOnShow=false), поэтому терминал остаётся активным, а чтение идёт в фоновом
+    // потоке, пока Run блокирует главный. RequestClose проверяет поток, поэтому поток лишь выставляет флаг,
+    // а закрывает окно главный поток из onUpdate.
+    public static void EnsureStarted()
+    {
+        if (s_started || Console.IsInputRedirected) // в guided-дочернем процессе stdin закрыт — пропускаем
+            return;
+
+        s_started = true;
+        var thread = new Thread(() =>
+        {
+            while (true)
+            {
+                ConsoleKeyInfo key;
+                try
+                {
+                    key = Console.ReadKey(intercept: true);
+                }
+                catch (InvalidOperationException)
+                {
+                    return; // нет консоли: обработчик недоступен, поток просто завершается
+                }
+
+                if (key.Key == ConsoleKey.Escape)
+                    s_closeRequested = true;
+                else if (key.KeyChar == ' ')
+                {
+                    s_paused = !s_paused;
+                    Console.WriteLine(s_paused ? "  Пауза." : "  Продолжение.");
+                }
+            }
+        })
+        { IsBackground = true };
+        thread.Start();
+    }
+}
+
 static class WindowConfig
 {
     public static string OutDir = "";
     public static (int X, int Y)? ForcedPosition; // задано ключом --position
+    public static string? SavePath; // задано ключом --save: сцена пишется при закрытии окна
 
     private static readonly (int X, int Y) s_defaultPosition = (0, 40);
     private static readonly (int Width, int Height) s_defaultSize = (1280, 720);
