@@ -10,7 +10,7 @@ namespace Engine3D.Tests;
 /// (<see cref="FramePreparation.Prepare"/>) без окна и GL-контекста.
 /// </summary>
 [TestClass]
-public sealed class CpuScenarioTests
+public sealed partial class CpuScenarioTests
 {
     /// <summary>
     /// Относительный допуск clip-объёма: |x|, |y|, |z| ≤ w · (1 + допуск). Координаты сцен — единицы и десятки,
