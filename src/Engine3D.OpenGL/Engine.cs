@@ -66,6 +66,26 @@ public sealed class Engine : IDisposable
     /// <summary>Число GPU-мешей в кэше: проверка того, что общий MeshData загружен на GPU один раз.</summary>
     internal int GpuMeshCount => _renderer.MeshCount;
 
+    /// <summary>Число GPU-текстур: одна общая TextureData загружается только один раз.</summary>
+    internal int GpuTextureCount => _renderer.TextureCount;
+
+    /// <summary>Декодирует PNG в неизменяемую CPU TextureData. GPU-upload выполняется лениво при показе.</summary>
+    /// <exception cref="ObjectDisposedException">Engine уже освобожден.</exception>
+    /// <exception cref="InvalidOperationException">Вызов не с потока Create или Run уже начался.</exception>
+    /// <exception cref="ArgumentException">Путь пустой или некорректный.</exception>
+    /// <exception cref="FileNotFoundException">Файл не существует.</exception>
+    /// <exception cref="UnauthorizedAccessException">Нет доступа к файлу.</exception>
+    /// <exception cref="IOException">Ошибка чтения файла.</exception>
+    /// <exception cref="InvalidDataException">Поврежденный или неподдерживаемый PNG; сообщение содержит путь и причину.</exception>
+    public TextureData LoadTexture(string path)
+    {
+        ThrowIfDisposed();
+        ThrowIfWrongThread();
+        if (_state != State.Created)
+            throw new InvalidOperationException("LoadTexture is valid only after Create and before Run.");
+        return TextureDecoder.Load(path);
+    }
+
     /// <summary>
     /// Только для проверок: вызывается после отрисовки кадра и до его показа с размером кадрового буфера и пикселями
     /// RGBA8 (строки снизу вверх, как отдает OpenGL).

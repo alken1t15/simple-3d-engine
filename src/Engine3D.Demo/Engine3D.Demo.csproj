@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Update="Assets/control.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Engine3D.Core/Engine3D.Core.csproj" />
     <ProjectReference Include="../Engine3D.OpenGL/Engine3D.OpenGL.csproj" />
   </ItemGroup>

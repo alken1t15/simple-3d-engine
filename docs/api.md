@@ -1,6 +1,6 @@
 # Публичный API — контракт версии 1
 
-**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. CPU-типы `Engine3D.Core` из раздела 2 реализованы в #7, `PrimitiveFactory` — в #8, `Engine`/`EngineOptions` с окном, циклом, GPU-кэшем мешей, depth и светом — в #9; `Engine.LoadTexture` и GPU-текстуры (#10), `SceneSerializer`/`SceneSnapshot` (#25) и остальное — контракт для реализации. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены; эта задача завершает базовые сигнатуры, CPU-доступ renderer, матрицы, lifecycle и ошибки по результатам spike #5. Принятие базовых дополнений подтверждается ревью PR. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
+**Статус:** описан контракт версии 1 по результатам spike #5, 07.10.2026. CPU-типы `Engine3D.Core` из раздела 2 реализованы в #7, `PrimitiveFactory` — в #8, `Engine`/`EngineOptions` с окном, циклом, GPU-кэшем мешей, depth и светом — в #9; `Engine.LoadTexture` и GPU-текстуры — в #10. `SceneSerializer`/`SceneSnapshot` (#25) и остальное — контракт для реализации. Нормали/свет и JSON приняты через [PR #26](https://github.com/alken1t15/simple-3d-engine/pull/26) и сохранены. [Требования](requirements.md) · [Архитектура](architecture.md) · [Основной план](../project_plan.md).
 
 ## 1. Что должен уметь вызывающий код
 
@@ -141,7 +141,7 @@ public sealed class Engine : IDisposable
 | Действие | Правило |
 |---|---|
 | `Engine.Create` | Создает готовый графический контекст. Отдельного `Initialize` нет. При ошибке не возвращает частично созданный объект. |
-| `LoadTexture` | Для P0 вызывается после `Create` и до `Run`; декодирует изображение в CPU-данные. Для P0 выбран PNG и декодер StbImageSharp; реализация — в #10. |
+| `LoadTexture` | Реализован в #10: после `Create` и до `Run` декодирует PNG в CPU-данные через StbImageSharp 2.30.16. GPU upload ленивый при показе; кэш по идентичности `TextureData`. |
 | `Run` | Блокирует вызывающий поток до закрытия окна или `RequestClose`; обрабатывает события, вызывает `onUpdate`, рендерит и показывает кадры. Для P0 один `Run` на один `Engine`. |
 | `RenderedFrames` | Обнуляется перед `Run`, увеличивается после показанного кадра и доступен после возврата `Run`. Не равен числу вызовов `onUpdate`. |
 | `RequestClose` | Просит завершить цикл при ближайшей обработке события; не освобождает ресурсы немедленно. |
@@ -151,7 +151,7 @@ public sealed class Engine : IDisposable
 
 ## 4. Сценарий A — текстурированный куб
 
-Пример использования контракта v1. `LoadTexture` реализуется в #10, поэтому сценарий целиком пока не выполняется; без текстуры тот же путь показа работает с #9.
+Пример использования контракта v1. `LoadTexture` и GPU-текстуры реализованы в #10; при наличии PNG и графического окружения путь показа работает через публичный API.
 
 ```csharp
 using Engine3D.Core;
@@ -300,6 +300,7 @@ CPU RGBA8-строки идут сверху вниз. LoadTexture до Run то
 - Engine.Create проверяет options, положительные Width/Height и непустой Title; создает контекст OpenGL 3.3 core на вызывающем потоке. Ошибка аргумента — ArgumentException (null — ArgumentNullException); ошибка создания — InvalidOperationException с причиной/InnerException, без частично живого Engine. Частичные ресурсы освобождаются. Неудачная инициализация GLFW не запоминается: следующий Create в том же процессе снова пытается ее выполнить (например, когда дисплей стал доступен).
 - Только поток Create может вызывать методы Engine; другой поток — InvalidOperationException. После Dispose — ObjectDisposedException, кроме повторного Dispose и чтения RenderedFrames. Нужен новый Engine для повторного показа.
 - LoadTexture допускается после Create и до начала Run; позже — InvalidOperationException. Пустой path — ArgumentException, отсутствие файла — FileNotFoundException, доступ — UnauthorizedAccessException, прочие I/O — IOException, испорченный/неподдерживаемый PNG — InvalidDataException с путем и причиной. PNG обязательна, остальные форматы вне гарантии P0.
+- Реализация #10 проверяет границы и CRC-32 чанков PNG, наличие IEND и zlib/Adler-32 IDAT. Нечитаемая причина декодера заменяется понятным fallback, исходная причина сохраняется в InnerException. При превышении GPU-лимита размера ошибка upload содержит SourcePath (либо `<in-memory>`), размеры и лимит.
 - Один блокирующий Run(scene,camera,onUpdate) на Engine. Второй Run — InvalidOperationException; null scene/camera — ArgumentNullException. Порядок: события → onUpdate → полная CPU-валидация изменяемого состояния → render → успешный swap → счетчик. deltaSeconds конечное неотрицательное реальное время между updates; первый callback получает 0.
 - Refresh может перерисовать последнее состояние без onUpdate; следующий обычный update учитывает прошедшее время. Viewport/aspect используют FramebufferSize, а не логический размер окна. При нулевом framebuffer пропустить render/swap/счетчик. RenderedFrames начинается с 0, сбрасывается перед Run и включает каждый успешный swap, в том числе refresh, а не callback-вызовы.
 - RequestClose во время Run запрашивает закрытие при ближайшей обработке событий; из onUpdate новый обычный кадр уже не показывается. Повтор безопасен. До Run — InvalidOperationException; после завершенного Run — no-op до Dispose.

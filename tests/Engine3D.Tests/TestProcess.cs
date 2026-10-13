@@ -19,12 +19,51 @@ public static class TestProcess
 
     public const string CreateWithoutDisplayScenario = "create-without-display";
 
+    public const string TextureSmokeScenario = "texture-smoke";
+    internal static bool IsTextureSmoke { get; private set; }
+
     public static int Main(string[] args) => args switch
     {
         [CreateWithoutDisplayScenario] => CreateWithoutDisplay(restoreDisplay: null),
         [CreateWithoutDisplayScenario, var display] => CreateWithoutDisplay(display),
+        [TextureSmokeScenario] => TextureSmoke(null),
+        [TextureSmokeScenario, var test] => TextureSmoke(test),
         _ => 2,
     };
+
+    // Cocoa требует создания окна на главном потоке; MSTest вызывает тесты на рабочем.
+    // Этот же entry point позволяет явно запускать весь текстурный smoke на реальном GPU.
+    private static int TextureSmoke(string? selected)
+    {
+        IsTextureSmoke = true;
+        var tests = new TextureRenderingTests();
+        Action[] checks =
+        [
+            tests.Cube_front_has_correct_corners_and_asymmetric_F,
+            tests.Plane_uses_the_same_UV_orientation_with_top_toward_negative_Z,
+            tests.Shared_texture_is_uploaded_once_changes_are_observed_and_cache_lives_until_dispose,
+            tests.Texture_multiplies_base_color_and_light_and_can_be_removed_between_frames,
+            tests.LoadTexture_enforces_thread_state_and_disposal,
+            tests.GPU_texture_is_deleted_and_CPU_data_survives,
+            tests.Oversized_texture_reports_source_path_or_in_memory_origin,
+        ];
+        if (selected is not null && !checks.Any(check => check.Method.Name == selected))
+            return 2;
+        try
+        {
+            foreach (var check in checks.Where(check => selected is null || check.Method.Name == selected))
+            {
+                check();
+                Console.WriteLine($"PASS {check.Method.Name}");
+            }
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(exception);
+            return 1;
+        }
+    }
 
     /// <summary>Запускает сценарий в новом процессе с измененным окружением (null удаляет переменную).</summary>
     public static (int ExitCode, string Output) Run(IReadOnlyDictionary<string, string?> environment, params string[] args)
