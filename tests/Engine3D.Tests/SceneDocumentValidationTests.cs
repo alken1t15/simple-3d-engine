@@ -43,13 +43,22 @@ public sealed class SceneDocumentValidationTests
     [DataRow("UTF-8 BOM")]
     [DataRow("unknown properties")]
     [DataRow("no objects")]
+    [DataRow("raw UTF-8 text")]
+    [DataRow("duplicate unknown properties")]
     public void Valid_documents_load_without_a_texture_loader(string kind)
     {
         var root = JsonNode.Parse(ValidDocument)!;
+        string? text = null;
         switch (kind)
         {
             case "as is":
             case "UTF-8 BOM":
+                break;
+            case "raw UTF-8 text": // многобайтовые символы как есть, без \u-экранирования
+                text = Replace(ValidDocument, "\"version\": 1,", "\"version\": 1, \"comment\": \"сцена — кирпич\",");
+                break;
+            case "duplicate unknown properties": // неизвестные свойства пропускаются целиком, их повторы тоже
+                text = Replace(ValidDocument, "\"version\": 1,", "\"version\": 1, \"comment\": 1, \"comment\": { \"x\": 1, \"x\": 2 },");
                 break;
             case "unknown properties": // лишние свойства игнорируются, обязательные проверяются как обычно
                 root["comment"] = "saved by hand";
@@ -65,9 +74,9 @@ public sealed class SceneDocumentValidationTests
                 break;
         }
 
-        byte[] text = Encoding.UTF8.GetBytes(root.ToJsonString());
+        byte[] bytes = Encoding.UTF8.GetBytes(text ?? root.ToJsonString());
         string path = Path.Combine(_directory, "scene.json");
-        File.WriteAllBytes(path, kind == "UTF-8 BOM" ? [0xEF, 0xBB, 0xBF, .. text] : text);
+        File.WriteAllBytes(path, kind == "UTF-8 BOM" ? [0xEF, 0xBB, 0xBF, .. bytes] : bytes);
 
         var loaded = SceneSerializer.Load(path);
 
@@ -143,6 +152,32 @@ public sealed class SceneDocumentValidationTests
             Assert.IsInstanceOfType<JsonException>(exception.InnerException); // разбор JSON: исходная причина сохранена
         else
             Assert.IsNotInstanceOfType<JsonException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    [DataRow(0xFF)]
+    [DataRow(0x80)]
+    [DataRow(0xD0)]
+    public void Damaged_utf8_is_rejected_before_the_texture_loader(int damagedByte)
+    {
+        // Регрессия ревью #25: File.ReadAllText заменял поврежденные байты символом U+FFFD, и Load принимал другой
+        // документ, вызывая загрузчик с испорченным путем. Байт '#' в пути заменяется на 0xFF (в UTF-8 не встречается),
+        // 0x80 (продолжение без начала) или 0xD0 (начало двухбайтового символа, за которым идет 'b').
+        byte[] bytes = Encoding.UTF8.GetBytes(Replace(ValidDocument, "\"texturePath\": null", "\"texturePath\": \"a#b.png\""));
+        bytes[Array.IndexOf(bytes, (byte)'#')] = (byte)damagedByte;
+        string path = Path.Combine(_directory, "scene.json");
+        File.WriteAllBytes(path, bytes);
+        int loaderCalls = 0;
+
+        var exception = Assert.ThrowsExactly<InvalidDataException>(() => SceneSerializer.Load(path, texturePath =>
+        {
+            loaderCalls++;
+            return new TextureData(1, 1, new byte[4], texturePath);
+        }));
+
+        Assert.StartsWith($"Scene file '{path}' is invalid at $: the file is not valid UTF-8", exception.Message);
+        Assert.IsInstanceOfType<DecoderFallbackException>(exception.InnerException);
+        Assert.AreEqual(0, loaderCalls);
     }
 
     private static string InvalidDocument(string kind)
