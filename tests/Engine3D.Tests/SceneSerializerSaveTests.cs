@@ -12,7 +12,7 @@ public sealed class SceneSerializerSaveTests
     private string _directory = "";
 
     [TestInitialize]
-    public void CreateDirectory() => _directory = Directory.CreateTempSubdirectory("engine3d-save-").FullName;
+    public void CreateDirectory() => _directory = TemporaryDirectory.Create("engine3d-save-");
 
     [TestCleanup]
     public void DeleteDirectory() => Directory.Delete(_directory, recursive: true);
