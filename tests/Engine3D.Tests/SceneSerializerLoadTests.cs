@@ -11,7 +11,7 @@ public sealed class SceneSerializerLoadTests
     private string _directory = "";
 
     [TestInitialize]
-    public void CreateDirectory() => _directory = Directory.CreateTempSubdirectory("engine3d-load-").FullName;
+    public void CreateDirectory() => _directory = TemporaryDirectory.Create("engine3d-load-");
 
     [TestCleanup]
     public void DeleteDirectory() => Directory.Delete(_directory, recursive: true);
