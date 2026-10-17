@@ -13,10 +13,14 @@ try
 
     using var engine = Engine.Create(new EngineOptions
     {
-        Width = 960,
-        Height = 640,
+        Width = options.Size?.Width ?? 960,
+        Height = options.Size?.Height ?? 640,
         Title = $"Engine3D — Demo #11 ({(options.LoadPath is null ? options.Scenario.ToString() : "JSON")})",
+        FocusOnShow = !options.NoFocus,
+        Position = options.Position,
     });
+    (int X, int Y, int Width, int Height)? savedBounds = null;
+    savedBounds = SaveBoundsIfChanged(engine, options.BoundsOut, savedBounds);
 
     DemoScene? demo = null;
     SceneSnapshot snapshot;
@@ -50,6 +54,8 @@ try
 
     engine.Run(snapshot.Scene, snapshot.Camera, deltaSeconds =>
     {
+        savedBounds = SaveBoundsIfChanged(engine, options.BoundsOut, savedBounds);
+
         // Считаем показанные кадры: вызов callback, запросивший закрытие, не рисует новый кадр.
         if (options.FrameLimit is { } limit && engine.RenderedFrames >= limit)
         {
@@ -60,6 +66,7 @@ try
         if (options.LoadPath is null && !options.Static && options.Scenario != DemoScenario.RoundTrip)
             demo!.Update(options.Scenario, deltaSeconds);
     });
+    SaveBoundsIfChanged(engine, options.BoundsOut, savedBounds);
     Console.WriteLine($"Завершено штатно. Показано кадров: {engine.RenderedFrames}.");
 }
 catch (Exception exception)
@@ -74,4 +81,31 @@ static void Save(string path, SceneSnapshot snapshot)
     Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
     SceneSerializer.Save(fullPath, snapshot.Scene, snapshot.Camera);
     Console.WriteLine($"Сцена сохранена: {fullPath}");
+}
+
+// Пишет текущие границы окна в --bounds-out, только если они изменились.
+static (int X, int Y, int Width, int Height)? SaveBoundsIfChanged(
+    Engine engine,
+    string? path,
+    (int X, int Y, int Width, int Height)? previous)
+{
+    if (path is null)
+        return previous;
+
+    var bounds = engine.WindowBounds;
+    if (bounds == previous || bounds.Width <= 0 || bounds.Height <= 0)
+        return previous;
+
+    try
+    {
+        string fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}");
+        return bounds;
+    }
+    catch (Exception exception)
+    {
+        Console.Error.WriteLine($"Не удалось записать положение окна: {exception.Message}");
+        return bounds;
+    }
 }

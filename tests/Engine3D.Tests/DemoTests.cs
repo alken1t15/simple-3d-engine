@@ -16,6 +16,7 @@ public sealed class DemoTests
         Assert.AreEqual(Path.Combine(AppContext.BaseDirectory, "Assets", "control.png"), options.TexturePath);
         Assert.IsTrue(File.Exists(options.TexturePath));
         Assert.IsFalse(options.Static);
+        Assert.IsFalse(options.NoFocus);
         Assert.IsFalse(options.Help);
         Assert.IsNull(options.FrameLimit);
     }
@@ -33,9 +34,18 @@ public sealed class DemoTests
         var load = DemoOptions.Parse(["--load", "my scenes/scene.json", "--frames", "60"]);
         Assert.AreEqual("my scenes/scene.json", load.LoadPath);
         Assert.AreEqual(60L, load.FrameLimit);
+        var loadNoFocus = DemoOptions.Parse(["--load", "my scenes/scene.json", "--frames", "60", "--no-focus"]);
+        Assert.IsTrue(loadNoFocus.NoFocus);
         var save = DemoOptions.Parse(["--static", "--save", "my scenes/scene.json"]);
         Assert.IsTrue(save.Static);
         Assert.AreEqual("my scenes/scene.json", save.SavePath);
+        Assert.IsTrue(DemoOptions.Parse(["--no-focus"]).NoFocus);
+
+        var window = DemoOptions.Parse(["--position", "10,-5", "--size", "800x600",
+            "--bounds-out", "bounds.txt", "--load", "scene.json", "--frames", "60"]);
+        Assert.AreEqual((10, -5), window.Position);
+        Assert.AreEqual((800, 600), window.Size);
+        Assert.AreEqual("bounds.txt", window.BoundsOut);
     }
 
     [TestMethod]
@@ -48,6 +58,12 @@ public sealed class DemoTests
     [DataRow("--load", "")]
     [DataRow("--save", "scene.json")]
     [DataRow("--scene", "scene.json")]
+    [DataRow("--position", "10")]
+    [DataRow("--position", "a,b")]
+    [DataRow("--size", "0x600")]
+    [DataRow("--size", "800x0")]
+    [DataRow("--size", "800")]
+    [DataRow("--bounds-out", "bounds/")]
     public void Invalid_values_fail_before_window_creation(string name, string value)
     {
         var exception = Assert.ThrowsExactly<ArgumentException>(() => DemoOptions.Parse([name, value]));
