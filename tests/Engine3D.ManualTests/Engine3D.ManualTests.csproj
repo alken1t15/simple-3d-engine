@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Engine3D.Core/Engine3D.Core.csproj" />
+    <ProjectReference Include="../../src/Engine3D.OpenGL/Engine3D.OpenGL.csproj" />
+    <!-- Собирает Demo вместе с харнессом; сборка Demo не попадает в ссылки харнесса. -->
+    <ProjectReference Include="../../src/Engine3D.Demo/Engine3D.Demo.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
