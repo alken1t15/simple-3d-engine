@@ -63,6 +63,23 @@ public sealed class Engine : IDisposable
     /// </summary>
     public long RenderedFrames { get; private set; }
 
+    /// <summary>
+    /// Текущее положение и размер клиентской области окна в тех же единицах, что <see cref="EngineOptions.Position"/>,
+    /// <see cref="EngineOptions.Width"/> и <see cref="EngineOptions.Height"/>. Читается с потока Create, например
+    /// из onUpdate: приложение может запомнить положение, заданное пользователем перетаскиванием или ресайзом.
+    /// </summary>
+    public (int X, int Y, int Width, int Height) WindowBounds
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            var location = _window.Location;
+            var size = _window.ClientSize;
+            return (location.X, location.Y, size.X, size.Y);
+        }
+    }
+
     /// <summary>Число GPU-мешей в кэше: проверка того, что общий MeshData загружен на GPU один раз.</summary>
     internal int GpuMeshCount => _renderer.MeshCount;
 
@@ -117,9 +134,14 @@ public sealed class Engine : IDisposable
             if (!GLFW.Init())
                 throw new InvalidOperationException("GLFW initialization failed.");
 
+            // Окно создается скрытым (StartVisible = false) и показывается в RunLoop. OpenTK не выставляет
+            // Focused-хинт при показе, поэтому фокус при показе задается отдельным GLFW-хинтом до создания окна.
+            GLFW.WindowHint(WindowHintBool.FocusOnShow, options.FocusOnShow);
+
             window = new NativeWindow(new NativeWindowSettings
             {
                 ClientSize = new Vector2i(options.Width, options.Height),
+                Location = options.Position is { } position ? new Vector2i(position.X, position.Y) : null,
                 Title = options.Title,
                 API = ContextAPI.OpenGL,
                 APIVersion = new Version(3, 3),

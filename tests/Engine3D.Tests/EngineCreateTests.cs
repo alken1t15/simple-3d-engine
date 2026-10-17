@@ -15,6 +15,8 @@ public sealed class EngineCreateTests
         Assert.AreEqual(720, options.Height);
         Assert.AreEqual("Engine3D Demo", options.Title);
         Assert.IsTrue(options.VSync);
+        Assert.IsTrue(options.FocusOnShow);
+        Assert.IsNull(options.Position);
     }
 
     [TestMethod]
