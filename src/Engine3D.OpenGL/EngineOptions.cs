@@ -23,7 +23,7 @@ public sealed class EngineOptions
     public bool FocusOnShow { get; init; } = true;
 
     /// <summary>
-    /// Начальное положение клиентской области окна в экранных пунктах от левого верхнего угла;
+    /// Начальное положение левого верхнего угла окна вместе с рамкой в экранных пунктах;
     /// <c>null</c> — положение выбирает ОС. Знаки допускаются.
     /// </summary>
     public (int X, int Y)? Position { get; init; }
