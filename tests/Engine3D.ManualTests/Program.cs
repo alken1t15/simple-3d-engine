@@ -263,30 +263,39 @@ int RequestCloseFilesCase()
     File.WriteAllText(broken, "{ \"version\": 1, \"meshes\": [");
 
     DemoResult missingRun = RunDemoCaptured("--load", missing, "--no-focus");
-    checks.Check(
-        missingRun.ExitCode != 0
-        && missingRun.Error.Contains(missing, StringComparison.Ordinal)
-        && missingRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
-        "отсутствующий файл",
-        DemoFailure(missingRun, $"код {missingRun.ExitCode}, в stderr нет пути или ошибки Demo"));
+    if (missingRun.ExitCode == DemoTimeoutExitCode)
+        checks.Fail("отсутствующий файл", DemoTimeoutMessage);
+    else
+        checks.Check(
+            missingRun.ExitCode != 0
+            && missingRun.Error.Contains(missing, StringComparison.Ordinal)
+            && missingRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
+            "отсутствующий файл",
+            $"код {missingRun.ExitCode}, в stderr нет пути или ошибки Demo");
 
     DemoResult brokenRun = RunDemoCaptured("--load", broken, "--no-focus");
-    checks.Check(
-        brokenRun.ExitCode != 0
-        && brokenRun.Error.Contains(broken, StringComparison.Ordinal)
-        && brokenRun.Error.Contains("$.meshes", StringComparison.Ordinal),
-        "битый файл",
-        DemoFailure(brokenRun, $"код {brokenRun.ExitCode}, в stderr нет пути или места ошибки"));
+    if (brokenRun.ExitCode == DemoTimeoutExitCode)
+        checks.Fail("битый файл", DemoTimeoutMessage);
+    else
+        checks.Check(
+            brokenRun.ExitCode != 0
+            && brokenRun.Error.Contains(broken, StringComparison.Ordinal)
+            && brokenRun.Error.Contains("$.meshes", StringComparison.Ordinal),
+            "битый файл",
+            $"код {brokenRun.ExitCode}, в stderr нет пути или места ошибки");
 
     string unsupported = Path.Combine(directory, "unsupported.txt");
     File.WriteAllText(unsupported, "not a supported scene or image");
     DemoResult unsupportedRun = RunDemoCaptured("--texture", unsupported, "--frames", "1", "--no-focus");
-    checks.Check(
-        unsupportedRun.ExitCode != 0
-        && unsupportedRun.Error.Contains(unsupported, StringComparison.Ordinal)
-        && unsupportedRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
-        "неподдерживаемый файл",
-        DemoFailure(unsupportedRun, $"код {unsupportedRun.ExitCode}, в stderr нет пути или ошибки Demo"));
+    if (unsupportedRun.ExitCode == DemoTimeoutExitCode)
+        checks.Fail("неподдерживаемый файл", DemoTimeoutMessage);
+    else
+        checks.Check(
+            unsupportedRun.ExitCode != 0
+            && unsupportedRun.Error.Contains(unsupported, StringComparison.Ordinal)
+            && unsupportedRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
+            "неподдерживаемый файл",
+            $"код {unsupportedRun.ExitCode}, в stderr нет пути или ошибки Demo");
     TryDelete(unsupported);
 
     if (OperatingSystem.IsWindows())
@@ -301,14 +310,16 @@ int RequestCloseFilesCase()
         try
         {
             DemoResult unreadableRun = RunDemoCaptured("--texture", unreadable, "--frames", "1", "--no-focus");
-            if (unreadableRun.ExitCode == 0)
+            if (unreadableRun.ExitCode == DemoTimeoutExitCode)
+                checks.Fail("недоступный файл", DemoTimeoutMessage);
+            else if (unreadableRun.ExitCode == 0)
                 checks.Skip("недоступный файл", "файл остался читаемым (возможно, запуск от root)");
             else
                 checks.Check(
                     unreadableRun.Error.Contains(unreadable, StringComparison.Ordinal)
                     && unreadableRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
                     "недоступный файл",
-                    DemoFailure(unreadableRun, $"код {unreadableRun.ExitCode}, в stderr нет пути или ошибки Demo"));
+                    $"код {unreadableRun.ExitCode}, в stderr нет пути или ошибки Demo");
         }
         finally
         {
