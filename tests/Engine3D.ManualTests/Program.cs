@@ -21,6 +21,11 @@ if (args is ["--child", var mode, .. var childArgs])
 // Описание кейса 1 выводится после справки Demo.
 const string DemoHelpDescription = "Справка Demo должна описывать запуск MVP и параметры проверки.";
 
+// Верхняя граница ожидания автоматических запусков Demo. Визуальные кейсы ее не используют.
+const int AutomaticDemoTimeoutMilliseconds = 120_000;
+const int DemoTimeoutExitCode = int.MinValue;
+const string DemoTimeoutMessage = "Demo не завершился за 120 секунд; процесс и дерево процессов остановлены.";
+
 // Полный список из 13 кейсов issue #13.
 ManualCase[] cases =
 [
@@ -116,6 +121,8 @@ int HelpCase()
     Console.WriteLine("--- Справка Demo ---");
     int code = RunDemoWithEnv(["--help"], environment: null, quiet: false);
     Console.WriteLine("--- Конец справки Demo ---");
+    if (code == DemoTimeoutExitCode)
+        return Fail(DemoTimeoutMessage);
     if (code != 0)
         return Fail($"Demo --help завершился с кодом {code}.");
 
@@ -216,6 +223,8 @@ int CycleCase()
     for (int cycle = 1; cycle <= 3; cycle++)
     {
         int code = RunDemo("--frames", "3", "--no-focus");
+        if (code == DemoTimeoutExitCode)
+            return Fail($"цикл {cycle}: {DemoTimeoutMessage}");
         if (code != 0)
             return Fail($"цикл {cycle} завершился с кодом {code}.");
     }
@@ -238,12 +247,14 @@ int RequestCloseFilesCase()
 {
     var checks = new Checks();
     DemoResult frames = RunDemoCaptured("--frames", "2", "--no-focus");
+    if (frames.ExitCode == DemoTimeoutExitCode)
+        return Fail(DemoTimeoutMessage);
     checks.Check(
         frames.ExitCode == 0
         && frames.Output.Contains("Завершено штатно.", StringComparison.Ordinal)
         && frames.Output.Contains("Показано кадров: 2.", StringComparison.Ordinal),
         "RequestClose",
-        $"код {frames.ExitCode}, в выводе нет штатного завершения с двумя кадрами");
+        DemoFailure(frames, $"код {frames.ExitCode}, в выводе нет штатного завершения с двумя кадрами"));
 
     string directory = Path.Combine(workDir, "files");
     Directory.CreateDirectory(directory);
@@ -257,7 +268,7 @@ int RequestCloseFilesCase()
         && missingRun.Error.Contains(missing, StringComparison.Ordinal)
         && missingRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
         "отсутствующий файл",
-        $"код {missingRun.ExitCode}, в stderr нет пути или ошибки Demo");
+        DemoFailure(missingRun, $"код {missingRun.ExitCode}, в stderr нет пути или ошибки Demo"));
 
     DemoResult brokenRun = RunDemoCaptured("--load", broken, "--no-focus");
     checks.Check(
@@ -265,7 +276,7 @@ int RequestCloseFilesCase()
         && brokenRun.Error.Contains(broken, StringComparison.Ordinal)
         && brokenRun.Error.Contains("$.meshes", StringComparison.Ordinal),
         "битый файл",
-        $"код {brokenRun.ExitCode}, в stderr нет пути или места ошибки");
+        DemoFailure(brokenRun, $"код {brokenRun.ExitCode}, в stderr нет пути или места ошибки"));
 
     string unsupported = Path.Combine(directory, "unsupported.txt");
     File.WriteAllText(unsupported, "not a supported scene or image");
@@ -275,7 +286,7 @@ int RequestCloseFilesCase()
         && unsupportedRun.Error.Contains(unsupported, StringComparison.Ordinal)
         && unsupportedRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
         "неподдерживаемый файл",
-        $"код {unsupportedRun.ExitCode}, в stderr нет пути или ошибки Demo");
+        DemoFailure(unsupportedRun, $"код {unsupportedRun.ExitCode}, в stderr нет пути или ошибки Demo"));
     TryDelete(unsupported);
 
     if (OperatingSystem.IsWindows())
@@ -297,7 +308,7 @@ int RequestCloseFilesCase()
                     unreadableRun.Error.Contains(unreadable, StringComparison.Ordinal)
                     && unreadableRun.Error.Contains("Ошибка Demo:", StringComparison.Ordinal),
                     "недоступный файл",
-                    $"код {unreadableRun.ExitCode}, в stderr нет пути или ошибки Demo");
+                    DemoFailure(unreadableRun, $"код {unreadableRun.ExitCode}, в stderr нет пути или ошибки Demo"));
         }
         finally
         {
@@ -398,7 +409,25 @@ DemoResult RunDemoCaptured(params string[] demoArgs)
     using Process child = StartDemo(demoArgs, environment: null, quietError: true, drain: false);
     Task<string> output = child.StandardOutput.ReadToEndAsync();
     Task<string> error = child.StandardError.ReadToEndAsync();
-    child.WaitForExit();
+    if (!child.WaitForExit(AutomaticDemoTimeoutMilliseconds))
+    {
+        Stop(child);
+        try
+        {
+            Task.WaitAll([output, error], 3000);
+        }
+        catch
+        {
+        }
+
+        string stdout = output.IsCompletedSuccessfully ? output.Result : "";
+        string stderr = error.IsCompletedSuccessfully ? error.Result : "";
+        return new DemoResult(
+            DemoTimeoutExitCode,
+            stdout,
+            $"{stderr}{Environment.NewLine}{DemoTimeoutMessage}");
+    }
+
     return new DemoResult(child.ExitCode, output.GetAwaiter().GetResult(), error.GetAwaiter().GetResult());
 }
 
@@ -410,9 +439,19 @@ int RunDemoWithEnv(
     bool quietError = false)
 {
     using Process child = StartDemo(demoArgs, environment, quiet, quietError);
-    child.WaitForExit();
+    if (!child.WaitForExit(AutomaticDemoTimeoutMilliseconds))
+    {
+        Stop(child);
+        Console.Error.WriteLine($"{DemoTimeoutMessage} Аргументы: {string.Join(' ', demoArgs)}");
+        return DemoTimeoutExitCode;
+    }
+
     return child.ExitCode;
 }
+
+// Возвращает причину провала запуска Demo с учетом timeout.
+static string DemoFailure(DemoResult result, string detail) =>
+    result.ExitCode == DemoTimeoutExitCode ? DemoTimeoutMessage : detail;
 
 // Создает процесс Demo с нужными аргументами.
 Process StartDemo(
