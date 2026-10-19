@@ -17,9 +17,13 @@ internal sealed class DemoOptions
           --save <JSON>                     Сохранить исходную сцену; требует --static.
           --load <JSON>                     Загрузить и показать неподвижную сцену вместо встроенной.
           --frames <число>                  Завершиться после указанного числа показанных кадров (> 0).
+          --position X,Y                    Начальное положение окна в экранных пунктах.
+          --size WxH                        Начальный размер клиентской области окна.
+          --bounds-out <файл>               Записывать текущие X,Y,W,H при изменении положения/размера.
+          --no-focus                        Не забирать фокус окном (для ручного харнесса).
           --help                            Эта справка; окно не создаётся.
 
-        --load совместим только с --frames. --static/--save применяются только к mvp.
+        --load совместим с --frames и параметрами окна. --static/--save применяются только к mvp.
         Закройте окно для штатного завершения. Изображения в JSON не встраиваются.
         """;
 
@@ -29,6 +33,10 @@ internal sealed class DemoOptions
     internal string? LoadPath { get; private set; }
     internal string? SavePath { get; private set; }
     internal bool Static { get; private set; }
+    internal bool NoFocus { get; private set; }
+    internal (int X, int Y)? Position { get; private set; }
+    internal (int Width, int Height)? Size { get; private set; }
+    internal string? BoundsOut { get; private set; }
     internal long? FrameLimit { get; private set; }
     internal bool Help { get; private set; }
 
@@ -46,6 +54,16 @@ internal sealed class DemoOptions
             {
                 case "--help": options.Help = true; break;
                 case "--static": options.Static = true; break;
+                case "--no-focus": options.NoFocus = true; break;
+                case "--position":
+                    options.Position = ParsePosition(Value());
+                    break;
+                case "--size":
+                    options.Size = ParseSize(Value());
+                    break;
+                case "--bounds-out":
+                    options.BoundsOut = FilePath();
+                    break;
                 case "--scenario":
                     options.Scenario = Value() switch
                     {
@@ -87,8 +105,13 @@ internal sealed class DemoOptions
 
         if (options.Help)
             return options;
-        if (options.LoadPath is not null && supplied.Any(option => option is not "--load" and not "--frames"))
-            throw new ArgumentException("--load совместим только с --frames: загруженная сцена показывается без движения.");
+        if (options.LoadPath is not null && supplied.Any(option =>
+                option is not "--load" and not "--frames" and not "--no-focus"
+                    and not "--position" and not "--size" and not "--bounds-out"))
+        {
+            throw new ArgumentException(
+                "--load совместим только с --frames, --no-focus, --position, --size и --bounds-out: загруженная сцена показывается без движения.");
+        }
         if (supplied.Contains("--scene") && options.Scenario != DemoScenario.RoundTrip)
             throw new ArgumentException("--scene применяется только к --scenario roundtrip.");
         if ((options.Static || options.SavePath is not null) && options.Scenario != DemoScenario.Mvp)
@@ -96,5 +119,35 @@ internal sealed class DemoOptions
         if (options.SavePath is not null && !options.Static)
             throw new ArgumentException("Для --save укажите --static: исходный и восстановленный кадры должны быть неподвижны.");
         return options;
+    }
+
+    // Разбирает --position X,Y.
+    private static (int X, int Y) ParsePosition(string value)
+    {
+        string[] parts = value.Split(',');
+        if (parts.Length == 2
+            && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int x)
+            && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int y))
+        {
+            return (x, y);
+        }
+
+        throw new ArgumentException("--position требует X,Y (целые числа).");
+    }
+
+    // Разбирает --size WxH.
+    private static (int Width, int Height) ParseSize(string value)
+    {
+        string[] parts = value.Split('x', 'X');
+        if (parts.Length == 2
+            && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int width)
+            && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int height)
+            && width > 0
+            && height > 0)
+        {
+            return (width, height);
+        }
+
+        throw new ArgumentException("--size требует WxH с положительными целыми W и H.");
     }
 }
