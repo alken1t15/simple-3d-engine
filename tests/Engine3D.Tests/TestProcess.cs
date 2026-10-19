@@ -22,14 +22,33 @@ public static class TestProcess
     public const string TextureSmokeScenario = "texture-smoke";
     internal static bool IsTextureSmoke { get; private set; }
 
+    public const string PerformanceSmokeScenario = "performance-cache-smoke";
+    internal static bool IsPerformanceSmoke { get; private set; }
+
     public static int Main(string[] args) => args switch
     {
         [CreateWithoutDisplayScenario] => CreateWithoutDisplay(restoreDisplay: null),
         [CreateWithoutDisplayScenario, var display] => CreateWithoutDisplay(display),
         [TextureSmokeScenario] => TextureSmoke(null),
         [TextureSmokeScenario, var test] => TextureSmoke(test),
+        [PerformanceSmokeScenario] => PerformanceSmoke(),
         _ => 2,
     };
+
+    private static int PerformanceSmoke()
+    {
+        IsPerformanceSmoke = true;
+        try
+        {
+            new PerformanceCacheTests().Performance_scene_reuses_one_GPU_mesh_and_texture_and_releases_both();
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(exception);
+            return 1;
+        }
+    }
 
     // Cocoa требует создания окна на главном потоке; MSTest вызывает тесты на рабочем.
     // Этот же entry point позволяет явно запускать весь текстурный smoke на реальном GPU.

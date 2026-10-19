@@ -128,6 +128,7 @@ public sealed class Engine : IDisposable
     public static Engine Create(EngineOptions options);
     public TextureData LoadTexture(string path);
     public long RenderedFrames { get; }
+    public (int Width, int Height) FramebufferSize { get; }
     public (int X, int Y, int Width, int Height) WindowBounds { get; }
     public void Run(Scene scene, Camera camera, Action<float>? onUpdate = null);
     public void RequestClose();
@@ -151,6 +152,7 @@ public sealed class Engine : IDisposable
 | `LoadTexture` | Реализован в #10: после `Create` и до `Run` декодирует PNG в CPU-данные через StbImageSharp 2.30.16. GPU upload ленивый при показе; кэш по идентичности `TextureData`. |
 | `Run` | Блокирует вызывающий поток до закрытия окна или `RequestClose`; обрабатывает события, вызывает `onUpdate`, рендерит и показывает кадры. Для P0 один `Run` на один `Engine`. |
 | `RenderedFrames` | Обнуляется перед `Run`, увеличивается после показанного кадра и доступен после возврата `Run`. Не равен числу вызовов `onUpdate`. |
+| `FramebufferSize` | Добавлен для #14: текущие физические пиксели framebuffer, в отличие от логического `WindowBounds`. Только поток `Create` и до `Dispose`, иначе `InvalidOperationException` / `ObjectDisposedException`; нулевой размер возможен при недоступном буфере. Нужен для записи фактического разрешения на HiDPI. |
 | `WindowBounds` | Текущее положение окна вместе с рамкой и размер клиентской области в единицах `EngineOptions.Position`, `Width` и `Height`; читается с потока `Create`, например из `onUpdate`. |
 | `RequestClose` | Просит завершить цикл при ближайшей обработке события; не освобождает ресурсы немедленно. |
 | `Dispose` | Освобождает GPU-кэш, шейдеры, окно и контекст. Повторный вызов безопасен. `Scene`, `MeshData`, `TextureData` не вызывают `Dispose`. |

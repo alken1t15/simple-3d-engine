@@ -64,6 +64,21 @@ public sealed class Engine : IDisposable
     public long RenderedFrames { get; private set; }
 
     /// <summary>
+    /// Текущий размер кадрового буфера в физических пикселях (на HiDPI отличается от WindowBounds).
+    /// Читается на потоке Create до Dispose; нулевой размер означает отсутствие доступного буфера.
+    /// </summary>
+    public (int Width, int Height) FramebufferSize
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            var size = _window.FramebufferSize;
+            return (size.X, size.Y);
+        }
+    }
+
+    /// <summary>
     /// Текущее положение левого верхнего угла окна вместе с рамкой и размер клиентской области в тех же единицах,
     /// что <see cref="EngineOptions.Position"/>, <see cref="EngineOptions.Width"/> и <see cref="EngineOptions.Height"/>.
     /// Читается с потока Create, например из onUpdate: приложение может запомнить положение, заданное пользователем
