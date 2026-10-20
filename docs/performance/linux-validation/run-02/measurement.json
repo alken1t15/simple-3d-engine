@@ -1,0 +1,855 @@
+{
+  "SchemaVersion": 1,
+  "StartedUtc": "2026-10-20T18:17:13.485669+00:00",
+  "AssemblyVersion": "1.0.0\u002Ba70c8094f7554b9fc7afcda981e43e571058cf79",
+  "Environment": {
+    "OS": "Linux Mint 22.2",
+    "Runtime": ".NET 10.0.12",
+    "Architecture": "X64",
+    "LogicalProcessors": 12,
+    "HardwareDescription": "CPU: Intel Core i5-12450H (8 \u044F\u0434\u0435\u0440/12 \u043F\u043E\u0442\u043E\u043A\u043E\u0432); RAM: 16 GB LPDDR4X; GPU: Intel UHD Alder Lake-P (ADL GT2), Mesa 25.2.8 iris, OpenGL 4.6 Core; Linux Mint 22.2, \u044F\u0434\u0440\u043E 6.17.0-20, X11 Cinnamon (Muffin); \u044D\u043A\u0440\u0430\u043D eDP-1 1920x1200@60, \u043C\u0430\u0441\u0448\u0442\u0430\u0431 1.0 (96 dpi); \u043F\u0438\u0442\u0430\u043D\u0438\u0435 \u043E\u0442 \u0441\u0435\u0442\u0438, \u0431\u0430\u0442\u0430\u0440\u0435\u044F 100%, \u043F\u0440\u043E\u0444\u0438\u043B\u044C balanced; \u0444\u043E\u043D: VS Code \u0441 Claude Code, \u043F\u0440\u043E\u043A\u0441\u0438 NekoBox; \u0446\u0435\u043B\u0435\u0432\u043E\u0439 \u041F\u041A VladimirKhmelev"
+  },
+  "Workload": {
+    "Objects": 1000,
+    "Triangles": 12000,
+    "UniqueMeshes": 1,
+    "UniqueTextures": 1,
+    "Grid": "10x10x10, spacing 2, cube size 1; static camera/objects/light",
+    "Texture": "Assets/control.png",
+    "Ambient": [
+      0.25,
+      0.25,
+      0.25
+    ],
+    "Directional": [
+      0.75,
+      0.75,
+      0.75
+    ],
+    "LightDirection": [
+      -1,
+      -1.5,
+      -2
+    ],
+    "CameraPosition": [
+      35,
+      30,
+      40
+    ],
+    "CameraTarget": [
+      9,
+      9,
+      9
+    ],
+    "FieldOfViewDegrees": 60,
+    "NearPlane": 0.1,
+    "FarPlane": 200
+  },
+  "Window": {
+    "RequestedWidth": 1280,
+    "RequestedHeight": 720,
+    "ClientWidth": 1280,
+    "ClientHeight": 720,
+    "FramebufferWidth": 1280,
+    "FramebufferHeight": 720,
+    "RequestedVSync": false
+  },
+  "RequestedWarmupSeconds": 10,
+  "RequestedDurationSeconds": 60,
+  "Status": "complete",
+  "InvalidReason": null,
+  "StartSeconds": 10.0003334,
+  "StartFrames": 14385,
+  "EndSeconds": 70.001738,
+  "EndFrames": 98470,
+  "MeasuredSeconds": 60.0014046,
+  "MeasuredFrames": 84085,
+  "Fps": 1401.3838602704977,
+  "MeanFrameMs": 0.7135803603496462,
+  "StartMemory": {
+    "WorkingSetBytes": 133513216,
+    "ManagedBytes": 2343080
+  },
+  "Samples": [
+    {
+      "FromSeconds": 0,
+      "ToSeconds": 1.0000400000000003,
+      "Frames": 1472,
+      "MaxCallbackGapMs": 5.84499999999899,
+      "Memory": {
+        "WorkingSetBytes": 134213632,
+        "ManagedBytes": 2453568
+      },
+      "Seconds": 1.0000400000000003,
+      "Fps": 1471.9411223551053,
+      "MeanFrameMs": 0.6793750000000002
+    },
+    {
+      "FromSeconds": 1.0000400000000003,
+      "ToSeconds": 2.000112999999999,
+      "Frames": 1489,
+      "MaxCallbackGapMs": 2.563899999998398,
+      "Memory": {
+        "WorkingSetBytes": 134504448,
+        "ManagedBytes": 2576416
+      },
+      "Seconds": 1.0000729999999987,
+      "Fps": 1488.8913109343039,
+      "MeanFrameMs": 0.6716406984553382
+    },
+    {
+      "FromSeconds": 2.000112999999999,
+      "ToSeconds": 3.0005663999999985,
+      "Frames": 1391,
+      "MaxCallbackGapMs": 2.2970000000004376,
+      "Memory": {
+        "WorkingSetBytes": 134754304,
+        "ManagedBytes": 2683072
+      },
+      "Seconds": 1.0004533999999996,
+      "Fps": 1390.3696064204496,
+      "MeanFrameMs": 0.7192332135154562
+    },
+    {
+      "FromSeconds": 3.0005663999999985,
+      "ToSeconds": 4.000603999999999,
+      "Frames": 1482,
+      "MaxCallbackGapMs": 2.596800000000954,
+      "Memory": {
+        "WorkingSetBytes": 135004160,
+        "ManagedBytes": 2805920
+      },
+      "Seconds": 1.0000376000000006,
+      "Fps": 1481.9442788951126,
+      "MeanFrameMs": 0.6747892037786779
+    },
+    {
+      "FromSeconds": 4.000603999999999,
+      "ToSeconds": 5.0008208,
+      "Frames": 1491,
+      "MaxCallbackGapMs": 2.4852000000006313,
+      "Memory": {
+        "WorkingSetBytes": 135151616,
+        "ManagedBytes": 2920544
+      },
+      "Seconds": 1.0002168000000005,
+      "Fps": 1490.676821265149,
+      "MeanFrameMs": 0.6708362173038233
+    },
+    {
+      "FromSeconds": 5.0008208,
+      "ToSeconds": 6.0010718,
+      "Frames": 1492,
+      "MaxCallbackGapMs": 2.1778000000001185,
+      "Memory": {
+        "WorkingSetBytes": 135290880,
+        "ManagedBytes": 3035168
+      },
+      "Seconds": 1.0002510000000004,
+      "Fps": 1491.625601973904,
+      "MeanFrameMs": 0.6704095174262737
+    },
+    {
+      "FromSeconds": 6.0010718,
+      "ToSeconds": 7.0016801,
+      "Frames": 1507,
+      "MaxCallbackGapMs": 2.6870000000016603,
+      "Memory": {
+        "WorkingSetBytes": 135421952,
+        "ManagedBytes": 3158016
+      },
+      "Seconds": 1.0006082999999997,
+      "Fps": 1506.0838491945356,
+      "MeanFrameMs": 0.6639736562707363
+    },
+    {
+      "FromSeconds": 7.0016801,
+      "ToSeconds": 8.0024466,
+      "Frames": 1487,
+      "MaxCallbackGapMs": 2.5791999999995596,
+      "Memory": {
+        "WorkingSetBytes": 135544832,
+        "ManagedBytes": 3272896
+      },
+      "Seconds": 1.000766500000001,
+      "Fps": 1485.861087476448,
+      "MeanFrameMs": 0.6730104236718231
+    },
+    {
+      "FromSeconds": 8.0024466,
+      "ToSeconds": 9.002905999999998,
+      "Frames": 1505,
+      "MaxCallbackGapMs": 2.622699999999867,
+      "Memory": {
+        "WorkingSetBytes": 135659520,
+        "ManagedBytes": 3395744
+      },
+      "Seconds": 1.000459399999997,
+      "Fps": 1504.3089204819353,
+      "MeanFrameMs": 0.664757076411958
+    },
+    {
+      "FromSeconds": 9.002905999999998,
+      "ToSeconds": 10.0035072,
+      "Frames": 1493,
+      "MaxCallbackGapMs": 2.5329999999996744,
+      "Memory": {
+        "WorkingSetBytes": 135778304,
+        "ManagedBytes": 3510368
+      },
+      "Seconds": 1.000601200000002,
+      "Fps": 1492.102947707835,
+      "MeanFrameMs": 0.670195043536505
+    },
+    {
+      "FromSeconds": 10.0035072,
+      "ToSeconds": 11.0040021,
+      "Frames": 1502,
+      "MaxCallbackGapMs": 2.3022000000025855,
+      "Memory": {
+        "WorkingSetBytes": 135901184,
+        "ManagedBytes": 3633216
+      },
+      "Seconds": 1.0004948999999996,
+      "Fps": 1501.2570278968944,
+      "MeanFrameMs": 0.6661084553928094
+    },
+    {
+      "FromSeconds": 11.0040021,
+      "ToSeconds": 12.004421599999999,
+      "Frames": 1488,
+      "MaxCallbackGapMs": 2.183800000000957,
+      "Memory": {
+        "WorkingSetBytes": 136024064,
+        "ManagedBytes": 3747840
+      },
+      "Seconds": 1.0004194999999996,
+      "Fps": 1487.376045748809,
+      "MeanFrameMs": 0.6723249327956986
+    },
+    {
+      "FromSeconds": 12.004421599999999,
+      "ToSeconds": 13.0049193,
+      "Frames": 1481,
+      "MaxCallbackGapMs": 2.588199999998153,
+      "Memory": {
+        "WorkingSetBytes": 136138752,
+        "ManagedBytes": 3862720
+      },
+      "Seconds": 1.0004977000000004,
+      "Fps": 1480.2632729690426,
+      "MeanFrameMs": 0.6755555030384878
+    },
+    {
+      "FromSeconds": 13.0049193,
+      "ToSeconds": 14.006001499999998,
+      "Frames": 1394,
+      "MaxCallbackGapMs": 2.481499999998249,
+      "Memory": {
+        "WorkingSetBytes": 136245248,
+        "ManagedBytes": 3977344
+      },
+      "Seconds": 1.001082199999999,
+      "Fps": 1392.4930440277544,
+      "MeanFrameMs": 0.71813644189383
+    },
+    {
+      "FromSeconds": 14.006001499999998,
+      "ToSeconds": 15.006849399999998,
+      "Frames": 1462,
+      "MaxCallbackGapMs": 2.7657000000012033,
+      "Memory": {
+        "WorkingSetBytes": 136368128,
+        "ManagedBytes": 4091968
+      },
+      "Seconds": 1.0008479000000001,
+      "Fps": 1460.7614203916498,
+      "MeanFrameMs": 0.6845744870041041
+    },
+    {
+      "FromSeconds": 15.006849399999998,
+      "ToSeconds": 16.0069916,
+      "Frames": 1503,
+      "MaxCallbackGapMs": 2.188000000000301,
+      "Memory": {
+        "WorkingSetBytes": 136560640,
+        "ManagedBytes": 4214816
+      },
+      "Seconds": 1.0001422000000009,
+      "Fps": 1502.7863037876,
+      "MeanFrameMs": 0.6654306054557557
+    },
+    {
+      "FromSeconds": 16.0069916,
+      "ToSeconds": 17.007478999999996,
+      "Frames": 1495,
+      "MaxCallbackGapMs": 2.6103000000006205,
+      "Memory": {
+        "WorkingSetBytes": 136675328,
+        "ManagedBytes": 4329696
+      },
+      "Seconds": 1.0004873999999973,
+      "Fps": 1494.2716919773343,
+      "MeanFrameMs": 0.6692223411371219
+    },
+    {
+      "FromSeconds": 17.007478999999996,
+      "ToSeconds": 18.0080563,
+      "Frames": 1467,
+      "MaxCallbackGapMs": 2.6228999999986513,
+      "Memory": {
+        "WorkingSetBytes": 136798208,
+        "ManagedBytes": 4444320
+      },
+      "Seconds": 1.0005773000000033,
+      "Fps": 1466.153589532758,
+      "MeanFrameMs": 0.6820567825494228
+    },
+    {
+      "FromSeconds": 18.0080563,
+      "ToSeconds": 19.0084072,
+      "Frames": 1462,
+      "MaxCallbackGapMs": 2.360999999996949,
+      "Memory": {
+        "WorkingSetBytes": 136908800,
+        "ManagedBytes": 4558944
+      },
+      "Seconds": 1.0003509000000008,
+      "Fps": 1461.4871641540972,
+      "MeanFrameMs": 0.6842345417236668
+    },
+    {
+      "FromSeconds": 19.0084072,
+      "ToSeconds": 20.0087648,
+      "Frames": 1466,
+      "MaxCallbackGapMs": 2.71680000000174,
+      "Memory": {
+        "WorkingSetBytes": 137027584,
+        "ManagedBytes": 4681792
+      },
+      "Seconds": 1.000357600000001,
+      "Fps": 1465.47594580178,
+      "MeanFrameMs": 0.6823721691678042
+    },
+    {
+      "FromSeconds": 20.0087648,
+      "ToSeconds": 21.009019799999997,
+      "Frames": 1464,
+      "MaxCallbackGapMs": 2.6279000000002384,
+      "Memory": {
+        "WorkingSetBytes": 137142272,
+        "ManagedBytes": 4796416
+      },
+      "Seconds": 1.0002549999999957,
+      "Fps": 1463.6267751723374,
+      "MeanFrameMs": 0.6832342896174833
+    },
+    {
+      "FromSeconds": 21.009019799999997,
+      "ToSeconds": 22.0096074,
+      "Frames": 1480,
+      "MaxCallbackGapMs": 2.589900000000256,
+      "Memory": {
+        "WorkingSetBytes": 137256960,
+        "ManagedBytes": 4911296
+      },
+      "Seconds": 1.000587600000003,
+      "Fps": 1479.1308627050703,
+      "MeanFrameMs": 0.6760727027027047
+    },
+    {
+      "FromSeconds": 22.0096074,
+      "ToSeconds": 23.009799899999997,
+      "Frames": 1460,
+      "MaxCallbackGapMs": 2.7423999999953708,
+      "Memory": {
+        "WorkingSetBytes": 137367552,
+        "ManagedBytes": 5025816
+      },
+      "Seconds": 1.0001924999999972,
+      "Fps": 1459.7190040917164,
+      "MeanFrameMs": 0.6850633561643816
+    },
+    {
+      "FromSeconds": 23.009799899999997,
+      "ToSeconds": 24.009893899999994,
+      "Frames": 1379,
+      "MaxCallbackGapMs": 2.5053999999968823,
+      "Memory": {
+        "WorkingSetBytes": 137478144,
+        "ManagedBytes": 5132216
+      },
+      "Seconds": 1.0000939999999972,
+      "Fps": 1378.8703861837027,
+      "MeanFrameMs": 0.7252313270485838
+    },
+    {
+      "FromSeconds": 24.009893899999994,
+      "ToSeconds": 25.010216899999996,
+      "Frames": 1469,
+      "MaxCallbackGapMs": 2.6106999999981895,
+      "Memory": {
+        "WorkingSetBytes": 137592832,
+        "ManagedBytes": 5247096
+      },
+      "Seconds": 1.0003230000000016,
+      "Fps": 1468.5256662098118,
+      "MeanFrameMs": 0.6809550714771965
+    },
+    {
+      "FromSeconds": 25.010216899999996,
+      "ToSeconds": 26.0107954,
+      "Frames": 1480,
+      "MaxCallbackGapMs": 2.650299999999106,
+      "Memory": {
+        "WorkingSetBytes": 137707520,
+        "ManagedBytes": 5369944
+      },
+      "Seconds": 1.0005785000000031,
+      "Fps": 1479.14431501376,
+      "MeanFrameMs": 0.6760665540540561
+    },
+    {
+      "FromSeconds": 26.0107954,
+      "ToSeconds": 27.010876099999997,
+      "Frames": 1479,
+      "MaxCallbackGapMs": 2.6076999999986583,
+      "Memory": {
+        "WorkingSetBytes": 137818112,
+        "ManagedBytes": 5484568
+      },
+      "Seconds": 1.000080699999998,
+      "Fps": 1478.8806543311985,
+      "MeanFrameMs": 0.6761870858688289
+    },
+    {
+      "FromSeconds": 27.010876099999997,
+      "ToSeconds": 28.011137399999996,
+      "Frames": 1456,
+      "MaxCallbackGapMs": 2.4829999999980146,
+      "Memory": {
+        "WorkingSetBytes": 137936896,
+        "ManagedBytes": 5599192
+      },
+      "Seconds": 1.0002612999999982,
+      "Fps": 1455.6196465863495,
+      "MeanFrameMs": 0.6869926510989
+    },
+    {
+      "FromSeconds": 28.011137399999996,
+      "ToSeconds": 29.011283,
+      "Frames": 1493,
+      "MaxCallbackGapMs": 2.7933000000004427,
+      "Memory": {
+        "WorkingSetBytes": 138059776,
+        "ManagedBytes": 5713816
+      },
+      "Seconds": 1.0001456000000033,
+      "Fps": 1492.7826508460319,
+      "MeanFrameMs": 0.6698898861353002
+    },
+    {
+      "FromSeconds": 29.011283,
+      "ToSeconds": 30.0118156,
+      "Frames": 1451,
+      "MaxCallbackGapMs": 2.6559000000005994,
+      "Memory": {
+        "WorkingSetBytes": 138268672,
+        "ManagedBytes": 5828696
+      },
+      "Seconds": 1.0005325999999997,
+      "Fps": 1450.2276087755665,
+      "MeanFrameMs": 0.6895469331495518
+    },
+    {
+      "FromSeconds": 30.0118156,
+      "ToSeconds": 31.011917399999994,
+      "Frames": 1482,
+      "MaxCallbackGapMs": 2.6800000000051227,
+      "Memory": {
+        "WorkingSetBytes": 138813440,
+        "ManagedBytes": 5951544
+      },
+      "Seconds": 1.000101799999996,
+      "Fps": 1481.8491477567643,
+      "MeanFrameMs": 0.6748325236167314
+    },
+    {
+      "FromSeconds": 31.011917399999994,
+      "ToSeconds": 32.0122472,
+      "Frames": 1479,
+      "MaxCallbackGapMs": 2.2106999999991217,
+      "Memory": {
+        "WorkingSetBytes": 138932224,
+        "ManagedBytes": 6066168
+      },
+      "Seconds": 1.000329800000003,
+      "Fps": 1478.5123866148901,
+      "MeanFrameMs": 0.676355510480056
+    },
+    {
+      "FromSeconds": 32.0122472,
+      "ToSeconds": 33.0122777,
+      "Frames": 1415,
+      "MaxCallbackGapMs": 3.3382000000017342,
+      "Memory": {
+        "WorkingSetBytes": 139042816,
+        "ManagedBytes": 6180792
+      },
+      "Seconds": 1.0000305000000012,
+      "Fps": 1414.9568438162619,
+      "MeanFrameMs": 0.7067353356890468
+    },
+    {
+      "FromSeconds": 33.0122777,
+      "ToSeconds": 34.0127603,
+      "Frames": 1184,
+      "MaxCallbackGapMs": 5.991399999999203,
+      "Memory": {
+        "WorkingSetBytes": 139141120,
+        "ManagedBytes": 6279224
+      },
+      "Seconds": 1.000482599999998,
+      "Fps": 1183.4288772238542,
+      "MeanFrameMs": 0.8450021959459443
+    },
+    {
+      "FromSeconds": 34.0127603,
+      "ToSeconds": 35.0130984,
+      "Frames": 1145,
+      "MaxCallbackGapMs": 2.4174999999999613,
+      "Memory": {
+        "WorkingSetBytes": 139247616,
+        "ManagedBytes": 6377400
+      },
+      "Seconds": 1.0003381000000005,
+      "Fps": 1144.613006342555,
+      "MeanFrameMs": 0.8736577292576423
+    },
+    {
+      "FromSeconds": 35.0130984,
+      "ToSeconds": 36.0133064,
+      "Frames": 1395,
+      "MaxCallbackGapMs": 2.172000000001617,
+      "Memory": {
+        "WorkingSetBytes": 139362304,
+        "ManagedBytes": 6484056
+      },
+      "Seconds": 1.0002080000000007,
+      "Fps": 1394.7099003407282,
+      "MeanFrameMs": 0.7169949820788535
+    },
+    {
+      "FromSeconds": 36.0133064,
+      "ToSeconds": 37.0136178,
+      "Frames": 1387,
+      "MaxCallbackGapMs": 2.6392000000043936,
+      "Memory": {
+        "WorkingSetBytes": 139464704,
+        "ManagedBytes": 6598680
+      },
+      "Seconds": 1.000311400000001,
+      "Fps": 1386.5682226554636,
+      "MeanFrameMs": 0.7212050468637354
+    },
+    {
+      "FromSeconds": 37.0136178,
+      "ToSeconds": 38.014121599999996,
+      "Frames": 1396,
+      "MaxCallbackGapMs": 2.7304999999984148,
+      "Memory": {
+        "WorkingSetBytes": 139571200,
+        "ManagedBytes": 6705080
+      },
+      "Seconds": 1.000503799999997,
+      "Fps": 1395.2970493465434,
+      "MeanFrameMs": 0.7166932664756426
+    },
+    {
+      "FromSeconds": 38.014121599999996,
+      "ToSeconds": 39.0143438,
+      "Frames": 1288,
+      "MaxCallbackGapMs": 2.3322999999990657,
+      "Memory": {
+        "WorkingSetBytes": 139669504,
+        "ManagedBytes": 6811736
+      },
+      "Seconds": 1.0002222000000032,
+      "Fps": 1287.7138699780867,
+      "MeanFrameMs": 0.776570031055903
+    },
+    {
+      "FromSeconds": 39.0143438,
+      "ToSeconds": 40.014838399999995,
+      "Frames": 1369,
+      "MaxCallbackGapMs": 2.2354999999976144,
+      "Memory": {
+        "WorkingSetBytes": 139780096,
+        "ManagedBytes": 6918136
+      },
+      "Seconds": 1.0004945999999961,
+      "Fps": 1368.323227331767,
+      "MeanFrameMs": 0.7308214755295808
+    },
+    {
+      "FromSeconds": 40.014838399999995,
+      "ToSeconds": 41.014974699999996,
+      "Frames": 1232,
+      "MaxCallbackGapMs": 2.758000000000038,
+      "Memory": {
+        "WorkingSetBytes": 139882496,
+        "ManagedBytes": 7024536
+      },
+      "Seconds": 1.0001363000000012,
+      "Fps": 1231.8321012845934,
+      "MeanFrameMs": 0.8117989448051959
+    },
+    {
+      "FromSeconds": 41.014974699999996,
+      "ToSeconds": 42.0152481,
+      "Frames": 1328,
+      "MaxCallbackGapMs": 2.4350999999995793,
+      "Memory": {
+        "WorkingSetBytes": 140587008,
+        "ManagedBytes": 1325072
+      },
+      "Seconds": 1.0002734000000046,
+      "Fps": 1327.637024037622,
+      "MeanFrameMs": 0.7532179216867504
+    },
+    {
+      "FromSeconds": 42.0152481,
+      "ToSeconds": 43.0153362,
+      "Frames": 1271,
+      "MaxCallbackGapMs": 2.4060000000005743,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1431984
+      },
+      "Seconds": 1.0000880999999993,
+      "Fps": 1270.8880347641382,
+      "MeanFrameMs": 0.7868513768686068
+    },
+    {
+      "FromSeconds": 43.0153362,
+      "ToSeconds": 44.0156858,
+      "Frames": 1332,
+      "MaxCallbackGapMs": 2.4562000000045714,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1538896
+      },
+      "Seconds": 1.0003495999999998,
+      "Fps": 1331.5344955403593,
+      "MeanFrameMs": 0.751013213213213
+    },
+    {
+      "FromSeconds": 44.0156858,
+      "ToSeconds": 45.016342699999996,
+      "Frames": 1153,
+      "MaxCallbackGapMs": 2.358899999997277,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1637584
+      },
+      "Seconds": 1.0006568999999956,
+      "Fps": 1152.24309151319,
+      "MeanFrameMs": 0.8678724197744975
+    },
+    {
+      "FromSeconds": 45.016342699999996,
+      "ToSeconds": 46.0170433,
+      "Frames": 1322,
+      "MaxCallbackGapMs": 2.749600000001351,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1744496
+      },
+      "Seconds": 1.0007006000000018,
+      "Fps": 1321.0744552366589,
+      "MeanFrameMs": 0.7569596066565824
+    },
+    {
+      "FromSeconds": 46.0170433,
+      "ToSeconds": 47.0176729,
+      "Frames": 1346,
+      "MaxCallbackGapMs": 2.605600000002539,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1851408
+      },
+      "Seconds": 1.0006296000000034,
+      "Fps": 1345.1530916135155,
+      "MeanFrameMs": 0.7434098068350694
+    },
+    {
+      "FromSeconds": 47.0176729,
+      "ToSeconds": 48.0182657,
+      "Frames": 1361,
+      "MaxCallbackGapMs": 2.541299999997193,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 1958320
+      },
+      "Seconds": 1.0005927999999997,
+      "Fps": 1360.1936771881633,
+      "MeanFrameMs": 0.7351894195444524
+    },
+    {
+      "FromSeconds": 48.0182657,
+      "ToSeconds": 49.0186146,
+      "Frames": 1343,
+      "MaxCallbackGapMs": 2.2347999999965396,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2065232
+      },
+      "Seconds": 1.0003488999999988,
+      "Fps": 1342.5315907279967,
+      "MeanFrameMs": 0.7448614296351443
+    },
+    {
+      "FromSeconds": 49.0186146,
+      "ToSeconds": 50.019587699999995,
+      "Frames": 1348,
+      "MaxCallbackGapMs": 2.396499999996138,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2172144
+      },
+      "Seconds": 1.000973099999996,
+      "Fps": 1346.6895364121228,
+      "MeanFrameMs": 0.74256164688427
+    },
+    {
+      "FromSeconds": 50.019587699999995,
+      "ToSeconds": 51.0211391,
+      "Frames": 1334,
+      "MaxCallbackGapMs": 2.758300000003544,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2279056
+      },
+      "Seconds": 1.0015514000000039,
+      "Fps": 1331.933638153763,
+      "MeanFrameMs": 0.750788155922042
+    },
+    {
+      "FromSeconds": 51.0211391,
+      "ToSeconds": 52.0216134,
+      "Frames": 1362,
+      "MaxCallbackGapMs": 2.9521000000016784,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2385968
+      },
+      "Seconds": 1.0004743000000005,
+      "Fps": 1361.354309650932,
+      "MeanFrameMs": 0.7345626284875187
+    },
+    {
+      "FromSeconds": 52.0216134,
+      "ToSeconds": 53.021664799999996,
+      "Frames": 1367,
+      "MaxCallbackGapMs": 2.9358000000030415,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2492880
+      },
+      "Seconds": 1.0000513999999967,
+      "Fps": 1366.929739811378,
+      "MeanFrameMs": 0.7315664959765886
+    },
+    {
+      "FromSeconds": 53.021664799999996,
+      "ToSeconds": 54.0218888,
+      "Frames": 1365,
+      "MaxCallbackGapMs": 2.660400000003449,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2608016
+      },
+      "Seconds": 1.0002240000000029,
+      "Fps": 1364.6943084748978,
+      "MeanFrameMs": 0.7327648351648373
+    },
+    {
+      "FromSeconds": 54.0218888,
+      "ToSeconds": 55.0220726,
+      "Frames": 1389,
+      "MaxCallbackGapMs": 2.5207000000051494,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2714928
+      },
+      "Seconds": 1.000183800000002,
+      "Fps": 1388.7447487151833,
+      "MeanFrameMs": 0.7200747300215997
+    },
+    {
+      "FromSeconds": 55.0220726,
+      "ToSeconds": 56.0227029,
+      "Frames": 1148,
+      "MaxCallbackGapMs": 2.8616999999968584,
+      "Memory": {
+        "WorkingSetBytes": 140591104,
+        "ManagedBytes": 2805392
+      },
+      "Seconds": 1.0006302999999974,
+      "Fps": 1147.276871387967,
+      "MeanFrameMs": 0.8716291811846667
+    },
+    {
+      "FromSeconds": 56.0227029,
+      "ToSeconds": 57.0227113,
+      "Frames": 1373,
+      "MaxCallbackGapMs": 2.5061000000050626,
+      "Memory": {
+        "WorkingSetBytes": 140595200,
+        "ManagedBytes": 2920528
+      },
+      "Seconds": 1.0000083999999987,
+      "Fps": 1372.9884668968798,
+      "MeanFrameMs": 0.72833823743627
+    },
+    {
+      "FromSeconds": 57.0227113,
+      "ToSeconds": 58.023046199999996,
+      "Frames": 1347,
+      "MaxCallbackGapMs": 2.611599999994496,
+      "Memory": {
+        "WorkingSetBytes": 140595200,
+        "ManagedBytes": 3027440
+      },
+      "Seconds": 1.0003348999999986,
+      "Fps": 1346.5490407262628,
+      "MeanFrameMs": 0.7426391239792121
+    },
+    {
+      "FromSeconds": 58.023046199999996,
+      "ToSeconds": 59.0234708,
+      "Frames": 1349,
+      "MaxCallbackGapMs": 2.341999999998734,
+      "Memory": {
+        "WorkingSetBytes": 140595200,
+        "ManagedBytes": 3134352
+      },
+      "Seconds": 1.0004246000000023,
+      "Fps": 1348.427457701457,
+      "MeanFrameMs": 0.7416045959970365
+    },
+    {
+      "FromSeconds": 59.0234708,
+      "ToSeconds": 60.0014046,
+      "Frames": 1335,
+      "MaxCallbackGapMs": 2.7756000000067615,
+      "Memory": {
+        "WorkingSetBytes": 140603392,
+        "ManagedBytes": 3241264
+      },
+      "Seconds": 0.9779338000000024,
+      "Fps": 1365.1230788832504,
+      "MeanFrameMs": 0.7325346816479419
+    }
+  ]
+}
