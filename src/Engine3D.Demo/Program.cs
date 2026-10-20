@@ -4,6 +4,12 @@ using Engine3D.OpenGL;
 
 try
 {
+    if (args.FirstOrDefault() == "--performance")
+    {
+        PerformanceRun.Execute(PerformanceOptions.Parse(args[1..]));
+        return;
+    }
+
     var options = DemoOptions.Parse(args);
     if (options.Help)
     {
