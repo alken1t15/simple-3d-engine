@@ -32,6 +32,7 @@ public sealed class Engine : IDisposable
     private readonly NativeWindow _window;
     private readonly SceneRenderer _renderer;
     private readonly FramePreparation _frame = new();
+    private readonly KeyboardInput _input = new();
     private readonly int _ownerThreadId;
     private Scene? _scene;
     private Camera? _camera;
@@ -54,6 +55,9 @@ public sealed class Engine : IDisposable
         _renderer = new SceneRenderer(); // шейдер собирается при создании: ошибка — до возврата Engine
         _ownerThreadId = Environment.CurrentManagedThreadId;
         _window.Refresh += OnRefresh;
+        _window.KeyDown += OnKeyDown;
+        _window.KeyUp += OnKeyUp;
+        _window.FocusedChanged += OnFocusedChanged;
     }
 
     /// <summary>
@@ -62,6 +66,24 @@ public sealed class Engine : IDisposable
     /// Не равно числу вызовов onUpdate.
     /// </summary>
     public long RenderedFrames { get; private set; }
+
+    /// <summary>
+    /// Снимок ввода после оконных событий. Читается только из onUpdate на потоке Create;
+    /// возвращённое значение можно сохранить, оно не меняется при следующем обновлении.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Engine освобождён.</exception>
+    /// <exception cref="InvalidOperationException">Не поток Create или вызов вне onUpdate.</exception>
+    public InputSnapshot Input
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            if (!_inUpdate)
+                throw new InvalidOperationException("Input is available only inside onUpdate.");
+            return _input.Snapshot;
+        }
+    }
 
     /// <summary>
     /// Текущий размер кадрового буфера в физических пикселях (на HiDPI отличается от WindowBounds).
@@ -262,6 +284,9 @@ public sealed class Engine : IDisposable
         try
         {
             _window.Refresh -= OnRefresh;
+            _window.KeyDown -= OnKeyDown;
+            _window.KeyUp -= OnKeyUp;
+            _window.FocusedChanged -= OnFocusedChanged;
             _window.Dispose();
         }
         catch (Exception exception)
@@ -277,17 +302,21 @@ public sealed class Engine : IDisposable
     private void RunLoop(Action<float>? onUpdate)
     {
         _window.IsVisible = true;
+        _input.SetFocus(_window.IsFocused);
         var clock = Stopwatch.StartNew();
         double? previousUpdate = null;
 
         while (true)
         {
+            _input.BeginFrame();
             _window.NewInputFrame();
             NativeWindow.ProcessWindowEvents(waitForEvents: false);
             ThrowIfGlfwError("processing window events");
             _callbackFailure?.Throw();
             if (_closeRequested || _window.IsExiting)
                 break;
+
+            _input.ReconcileHeld(ReadHeldKeys());
 
             double now = clock.Elapsed.TotalSeconds;
             float deltaSeconds = previousUpdate is { } previous ? (float)(now - previous) : 0f;
@@ -351,6 +380,50 @@ public sealed class Engine : IDisposable
             _window.Close();
         }
     }
+
+    private void OnKeyDown(KeyboardKeyEventArgs args)
+    {
+        if (MapKey(args.Key) is { } key)
+            _input.KeyDown(key, args.IsRepeat);
+    }
+
+    private void OnKeyUp(KeyboardKeyEventArgs args)
+    {
+        if (MapKey(args.Key) is { } key)
+            _input.KeyUp(key);
+    }
+
+    private void OnFocusedChanged(FocusedChangedEventArgs args) => _input.SetFocus(args.IsFocused);
+
+    private uint ReadHeldKeys()
+    {
+        uint result = 0;
+        foreach (var (native, key) in s_keys)
+        {
+            if (_window.KeyboardState.IsKeyDown(native))
+                result |= InputSnapshot.Mask(key);
+        }
+        return result;
+    }
+
+    private static readonly (Keys Native, InputKey Key)[] s_keys =
+    [
+        (Keys.A, InputKey.A), (Keys.D, InputKey.D), (Keys.Left, InputKey.Left),
+        (Keys.Right, InputKey.Right), (Keys.Space, InputKey.Space), (Keys.R, InputKey.R),
+        (Keys.Escape, InputKey.Escape),
+    ];
+
+    private static InputKey? MapKey(Keys key) => key switch
+    {
+        Keys.A => InputKey.A,
+        Keys.D => InputKey.D,
+        Keys.Left => InputKey.Left,
+        Keys.Right => InputKey.Right,
+        Keys.Space => InputKey.Space,
+        Keys.R => InputKey.R,
+        Keys.Escape => InputKey.Escape,
+        _ => null,
+    };
 
     private static byte[] ReadFramebuffer(int width, int height)
     {

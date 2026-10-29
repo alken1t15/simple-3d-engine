@@ -128,11 +128,21 @@ public sealed class Engine : IDisposable
     public static Engine Create(EngineOptions options);
     public TextureData LoadTexture(string path);
     public long RenderedFrames { get; }
+    public InputSnapshot Input { get; }
     public (int Width, int Height) FramebufferSize { get; }
     public (int X, int Y, int Width, int Height) WindowBounds { get; }
     public void Run(Scene scene, Camera camera, Action<float>? onUpdate = null);
     public void RequestClose();
     public void Dispose();
+}
+
+public enum InputKey { A, D, Left, Right, Space, R, Escape }
+public readonly struct InputSnapshot
+{
+    public bool IsFocused { get; }
+    public bool IsDown(InputKey key);
+    public bool WasPressed(InputKey key);
+    public bool WasReleased(InputKey key);
 }
 ```
 
@@ -143,6 +153,10 @@ public sealed class Engine : IDisposable
 `EngineOptions.FocusOnShow` по умолчанию `true`: окно забирает фокус, когда `Run` делает его видимым. Значение `false` оставляет фокус у запустившего процесса — это используется ручным харнессом, который принимает ответы в терминале, пока окно открыто. Настройка не влияет на рендер и не сериализуется.
 
 `EngineOptions.Position` задает начальное положение левого верхнего угла окна вместе с рамкой в экранных пунктах; `null` оставляет выбор ОС. `Engine.WindowBounds` возвращает положение окна вместе с рамкой и размер клиентской области в тех же единицах, что `Position`, `Width` и `Height`, и читается с потока `Create`, например из `onUpdate`. Это позволяет приложению запомнить положение/размер, заданные пользователем, и открыть следующее окно там же.
+
+Контракт клавиатуры `Engine.Input` и `InputSnapshot`, включая фокус, фронты и исключения,
+описан в [дополнении ввода](keyboard-input.md). Снимок читается только внутри `onUpdate`;
+существующая сигнатура `Run` сохранена.
 
 ## 3. Жизненный цикл и владение
 
