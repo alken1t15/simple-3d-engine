@@ -12,6 +12,31 @@ namespace Engine3D.Tests;
 public sealed class EngineLifecycleTests
 {
     [TestMethod]
+    public void Input_is_available_only_on_owner_thread_inside_update()
+    {
+        var engine = CreateEngine(nameof(Input_is_available_only_on_owner_thread_inside_update));
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => _ = engine.Input);
+            int updates = 0;
+            engine.Run(new Scene(), new Camera(), _ =>
+            {
+                var snapshot = engine.Input;
+                Assert.IsFalse(snapshot.IsDown(InputKey.Space));
+                Assert.ThrowsExactly<InvalidOperationException>(() => Task.Run(() => engine.Input).GetAwaiter().GetResult());
+                if (++updates == 3)
+                    engine.RequestClose();
+            });
+            Assert.ThrowsExactly<InvalidOperationException>(() => _ = engine.Input);
+        }
+        finally
+        {
+            engine.Dispose();
+        }
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = engine.Input);
+    }
+
+    [TestMethod]
     public void Run_shows_frames_until_RequestClose_and_counts_them()
     {
         var engine = CreateEngine(nameof(Run_shows_frames_until_RequestClose_and_counts_them));
