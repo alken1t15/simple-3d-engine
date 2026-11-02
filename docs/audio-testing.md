@@ -25,6 +25,14 @@ dotnet test Engine3D.sln -c Release --no-build --environment ENGINE3D_AUDIO_TEST
 сериализация нативных вызовов защищает общий current context.
 Это проверка нативных ресурсов/API без физического звука.
 
+CPU-регрессии различают освобождение source и явный Dispose клиентского handle:
+Stop loop music → Play другого клипа → повторный Stop/Pause/Resume не вызывают backend
+и не бросают исключение. То же проверяется для natural finish и вытеснения.
+После явного Voice.Dispose, Clip.Dispose или Device.Dispose методы старого handle
+дают ObjectDisposedException; повторный Dispose не удаляет source второй раз.
+Автоматически убранные handles сохраняют owner-thread проверки. Native-сценарии
+также обращаются к убранным handles, в том числе после освобождения их клипа.
+
 Отдельная native-регрессия откладывает фактический Pause до естественного окончания
 one-shot после managed-проверки Finished. Проверяется, что Resume не запускает
 завершившийся source заново; loop Pause/Resume и запрет перезапуска stopped source

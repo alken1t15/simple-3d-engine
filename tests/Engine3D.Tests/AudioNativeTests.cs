@@ -97,8 +97,9 @@ public sealed class AudioNativeTests
             voices[0].Resume(); otherVoice.Resume();
             voices[0].Stop();
             using var replacement = first.Play(stereo, true);
-            Assert.ThrowsExactly<ObjectDisposedException>(voices[0].Pause);
+            voices[0].Stop(); voices[0].Pause(); voices[0].Resume();
             mono.Dispose();
+            Assert.ThrowsExactly<ObjectDisposedException>(voices[0].Stop);
             stereo.Dispose();
             otherVoice.Stop();
             first.StopAll();
@@ -154,6 +155,8 @@ public sealed class AudioNativeTests
         Assert.IsTrue(backend.IsFinished(backend.LastSource));
 
         using var loop = device.Play(clip, loop: true, volume: 0f);
+        // Play уже убрал завершённый effect; его handle остаётся безопасным.
+        effect.Stop(); effect.Pause(); effect.Resume();
         loop.Pause();
         loop.Resume();
         Assert.IsFalse(backend.IsFinished(backend.LastSource));

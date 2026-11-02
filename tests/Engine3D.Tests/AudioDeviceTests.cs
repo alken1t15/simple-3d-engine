@@ -58,10 +58,10 @@ public sealed class AudioDeviceTests
         using var replacement = device.Play(clip);
         Assert.HasCount(32, backend.Sources);
         Assert.IsFalse(backend.Sources.ContainsKey(finishedSource));
-        Assert.ThrowsExactly<ObjectDisposedException>(voices[15].Pause);
+        AssertRetiredVoiceIsSafe(voices[15], backend);
         voices[0].Pause();
         using var next = device.Play(clip);
-        Assert.ThrowsExactly<ObjectDisposedException>(voices[0].Resume);
+        AssertRetiredVoiceIsSafe(voices[0], backend);
         Assert.HasCount(32, backend.Sources);
     }
 
@@ -107,7 +107,7 @@ public sealed class AudioDeviceTests
         using var replacement = device.Play(clip);
         Assert.HasCount(3, backend.Sources); // music, paused effect, replacement
         Assert.AreEqual(8, backend.Calls.Count(call => call == "finished"));
-        foreach (var effect in effects) Assert.ThrowsExactly<ObjectDisposedException>(effect.Pause);
+        foreach (var effect in effects) AssertRetiredVoiceIsSafe(effect, backend);
         music.Pause();
         paused.Resume();
     }
@@ -178,8 +178,90 @@ public sealed class AudioDeviceTests
         Assert.HasCount(32, backend.Sources);
         voices[7].Stop();
         using var replacement = device.Play(clip);
-        Assert.ThrowsExactly<ObjectDisposedException>(voices[7].Pause);
+        AssertRetiredVoiceIsSafe(voices[7], backend);
         voices[0].Pause();
+    }
+
+    [TestMethod]
+    [DataRow("finished")]
+    [DataRow("evicted")]
+    [DataRow("stopped")]
+    public void ReclaimedHandleRemainsSafeWhenAnotherClipIsPlayed(string reason)
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        using var other = device.LoadWave(file.Path);
+        using var voice = device.Play(clip, loop: reason == "stopped");
+        int source = backend.Sources.Keys.Single();
+        if (reason == "finished") backend.Completed.Add(source);
+        else if (reason == "stopped") voice.Stop();
+        else for (int i = 0; i < 31; i++) device.Play(clip);
+        using var replacement = device.Play(other);
+        Assert.IsFalse(backend.Sources.ContainsKey(source));
+        AssertRetiredVoiceIsSafe(voice, backend);
+        Assert.AreEqual(1, backend.Calls.Count(call => call == "delete-source"));
+        voice.Dispose(); voice.Dispose();
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Stop);
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Pause);
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Resume);
+        replacement.Pause(); replacement.Resume();
+    }
+
+    [TestMethod]
+    [DataRow("voice")]
+    [DataRow("clip")]
+    [DataRow("device")]
+    public void ReclaimedHandleIsInvalidatedByExplicitOrOwnerDisposal(string target)
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        var voice = device.Play(clip);
+        backend.Completed.Add(backend.Sources.Keys.Single());
+        using var replacement = device.Play(clip);
+        if (target == "voice") voice.Dispose();
+        else if (target == "clip") clip.Dispose();
+        else device.Dispose();
+        int calls = backend.Calls.Count;
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Stop);
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Pause);
+        Assert.ThrowsExactly<ObjectDisposedException>(voice.Resume);
+        voice.Dispose(); voice.Dispose();
+        Assert.HasCount(calls, backend.Calls);
+    }
+
+    [TestMethod]
+    public void ReclaimedHandleStillRejectsWrongThreadBeforeBackend()
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        using var voice = device.Play(clip);
+        voice.Stop();
+        using var replacement = device.Play(clip);
+        int calls = backend.Calls.Count;
+        foreach (var operation in new Action[] { voice.Stop, voice.Pause, voice.Resume, voice.Dispose })
+        {
+            Exception? error = null;
+            var thread = new Thread(() => { try { operation(); } catch (Exception exception) { error = exception; } });
+            thread.Start(); thread.Join();
+            Assert.IsInstanceOfType<InvalidOperationException>(error);
+        }
+        Assert.HasCount(calls, backend.Calls);
+        AssertRetiredVoiceIsSafe(voice, backend);
+    }
+
+    private static void AssertRetiredVoiceIsSafe(AudioVoice voice, RecordingAudioBackend backend)
+    {
+        int calls = backend.Calls.Count;
+        voice.Stop(); voice.Stop();
+        voice.Pause(); voice.Pause();
+        voice.Resume(); voice.Resume();
+        Assert.HasCount(calls, backend.Calls);
     }
 
     [TestMethod]

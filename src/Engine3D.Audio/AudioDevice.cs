@@ -87,8 +87,8 @@ public sealed class AudioDevice : IDisposable
         int source = backend.Play(clip.Buffer, loop, volume);
         var voice = new AudioVoice(this, clip, source, loop);
         var errors = new List<Exception>();
-        foreach (var completed in finished) AudioCleanup.Attempt(completed.DisposeCore, errors);
-        if (victim is not null) AudioCleanup.Attempt(victim.DisposeCore, errors);
+        foreach (var completed in finished) AudioCleanup.Attempt(completed.ReleaseSource, errors);
+        if (victim is not null) AudioCleanup.Attempt(victim.ReleaseSource, errors);
         if (errors.Count > 0)
         {
             // Не возвращаем и не теряем новую voice, если освобождение старых не удалось.
@@ -109,6 +109,7 @@ public sealed class AudioDevice : IDisposable
     }
 
     internal IAudioBackend Backend => backend;
+    internal bool IsDisposed => disposed;
     internal void Remove(AudioVoice voice) => voices.Remove(voice);
     internal void Release(AudioClip clip)
     {

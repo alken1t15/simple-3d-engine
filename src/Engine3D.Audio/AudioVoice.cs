@@ -7,6 +7,7 @@ public sealed class AudioVoice : IDisposable
     private readonly int source;
     private bool paused;
     private bool stopped;
+    private bool sourceReleased;
     private bool disposed;
     internal AudioClip Clip { get; }
     internal bool Loop { get; }
@@ -24,7 +25,7 @@ public sealed class AudioVoice : IDisposable
     public void Pause()
     {
         CheckAccess();
-        if (paused || Finished) return;
+        if (sourceReleased || paused || Finished) return;
         owner.Backend.Pause(source);
         paused = true;
     }
@@ -33,7 +34,7 @@ public sealed class AudioVoice : IDisposable
     public void Resume()
     {
         CheckAccess();
-        if (!paused || stopped) return;
+        if (sourceReleased || !paused || stopped) return;
         owner.Backend.Resume(source);
         paused = false;
     }
@@ -42,7 +43,7 @@ public sealed class AudioVoice : IDisposable
     public void Stop()
     {
         CheckAccess();
-        if (stopped) return;
+        if (sourceReleased || stopped) return;
         owner.Backend.Stop(source);
         stopped = true;
         paused = false;
@@ -52,12 +53,20 @@ public sealed class AudioVoice : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         owner.CheckAccess();
+        Clip.ThrowIfDisposed();
     }
 
     /// <summary>Останавливает и удаляет source; повторный вызов безопасен.</summary>
     public void Dispose()
     {
         if (disposed) return;
+        // Убранный source уже не принадлежит списку устройства. Его handle всё
+        // равно становится недействителен после Dispose клипа/устройства.
+        if (sourceReleased && (owner.IsDisposed || Clip.IsDisposed))
+        {
+            disposed = true;
+            return;
+        }
         owner.CheckAccess();
         DisposeCore();
     }
@@ -66,6 +75,17 @@ public sealed class AudioVoice : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        ReleaseSource();
+    }
+
+    // Автоматическая уборка освобождает native ресурс, но оставляет handle клиента
+    // пригодным для повторных Stop/Pause/Resume до явного Dispose его владельцев.
+    internal void ReleaseSource()
+    {
+        if (sourceReleased) return;
+        sourceReleased = true;
+        stopped = true;
+        paused = false;
         var errors = new List<Exception>();
         AudioCleanup.Attempt(() => owner.Backend.Stop(source), errors);
         AudioCleanup.Attempt(() => owner.Backend.DeleteSource(source), errors);

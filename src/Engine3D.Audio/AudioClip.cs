@@ -6,6 +6,7 @@ public sealed class AudioClip : IDisposable
     internal AudioDevice Owner { get; }
     internal int Buffer { get; }
     private bool disposed;
+    internal bool IsDisposed => disposed;
 
     internal AudioClip(AudioDevice owner, int buffer) { Owner = owner; Buffer = buffer; }
     internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
