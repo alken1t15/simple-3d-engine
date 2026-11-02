@@ -9,6 +9,39 @@ permissions:
   contents: read
 
 jobs:
+  audio-native-tests:
+    # Настоящий OpenAL Soft с null-драйвером; звук не выводится. NoDevice
+    # проверяется другим процессом с недоступным backend. Это не проверка слышимости.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install OpenAL Soft
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libopenal1
+      - name: Restore and build
+        run: |
+          dotnet restore Engine3D.sln
+          dotnet build Engine3D.sln -c Release --no-restore
+      - name: Run audio tests without audible output
+        run: dotnet test Engine3D.sln -c Release --no-build --environment ENGINE3D_AUDIO_TESTS=1 --filter 'FullyQualifiedName~Audio|FullyQualifiedName~WaveData' --logger "trx;LogFileName=audio-tests.trx" --results-directory artifacts/audio-tests
+      - name: Build public audio sample and backend spike
+        run: |
+          dotnet build samples/AudioSample -c Release
+          dotnet build spikes/OpenAlSpike -c Release
+      - name: Upload audio test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: audio-test-results
+          path: artifacts/audio-tests/*.trx
+          if-no-files-found: warn
+
   build:
     runs-on: ubuntu-latest
     steps:
