@@ -5,6 +5,22 @@ Spike — короткий эксперимент, который проверя
 | Spike | Issue | Статус |
 |---|---|---|
 | [OpenTK: окно, матрицы, depth, текстура, закрытие](#opentk-spike-issue-5) | #5 | Выполнен на целевом ноутбуке; дополнительно проверен ревьюерами в WSL2/WSLg и на macOS |
+| [OpenAL: Linux audio, voices, gain, NoDevice](#openal-spike) | [Игра #18](https://github.com/alken1t15/simple-platformer/issues/18) | Backend проверен на Linux; слышимость публичного API отдельно подтверждена пользователем |
+
+## OpenAL spike
+
+Изолированный [spikes/OpenAlSpike](../spikes/OpenAlSpike/README.md) проверяет
+OpenTK.Audio.OpenAL 4.9.4 и системную OpenAL Soft для отдельного аудиосервиса.
+Не входит в solution и не является зависимостью Engine3D.Audio.
+`--probe` проверяет создание устройства/context и 32 sources без звука,
+`--audible` — восемь эффектов вместе с loop, pause/resume, gain и mute,
+`--expect-no-device` — недоступность устройства в отдельном процессе.
+
+Linux Mint 22.2 x64, .NET 10.0.112, libopenal1 1.23.1: probe и NoDevice — PASS;
+пользователь подтвердил слышимость тестовых тонов. Все этапы готового публичного
+API затем подтверждены отдельно через [samples/AudioSample](../samples/AudioSample/Program.cs).
+Команды, ручной протокол и границы автоматических проверок — в [audio-testing.md](audio-testing.md).
+Источники и лицензии — в [THIRD_PARTY](../THIRD_PARTY.md).
 
 ## OpenTK spike (issue #5)
 

@@ -25,6 +25,12 @@ dotnet test Engine3D.sln -c Release --no-build --environment ENGINE3D_AUDIO_TEST
 сериализация нативных вызовов защищает общий current context.
 Это проверка нативных ресурсов/API без физического звука.
 
+Отдельная native-регрессия откладывает фактический Pause до естественного окончания
+one-shot после managed-проверки Finished. Проверяется, что Resume не запускает
+завершившийся source заново; loop Pause/Resume и запрет перезапуска stopped source
+проверяются в том же процессе. Ожидание ограничено таймаутом и не останавливает
+source искусственно. Как и остальные native-тесты, сценарий использует null driver.
+
 CI сохраняет CPU job без требования аудиоустройства и дополнительно запускает
 audio-native-tests с системным libopenal1 и null driver. Sample и spike собираются
 отдельно; они не являются зависимостью библиотек. Артефакты TRX — artifacts/audio-tests.
