@@ -76,15 +76,25 @@ public sealed class AudioDevice : IDisposable
         ValidateVolume(volume, nameof(volume));
         if (!ReferenceEquals(clip.Owner, this)) throw new ArgumentException("AudioClip принадлежит другому устройству", nameof(clip));
         clip.ThrowIfDisposed();
-        if (voices.Count >= VoiceLimit)
+        // Пока новый source не создан, существующие voices остаются нетронутыми.
+        var finished = voices.Where(voice => voice.Finished).ToArray();
+        AudioVoice? victim = null;
+        if (voices.Count - finished.Length >= VoiceLimit)
         {
-            var victim = voices.FirstOrDefault(voice => voice.Finished)
-                ?? voices.FirstOrDefault(voice => !voice.Loop);
+            victim = voices.FirstOrDefault(voice => !voice.Loop);
             if (victim is null) throw new InvalidOperationException("Лимит 32 активных loop voices исчерпан");
-            victim.DisposeCore();
         }
         int source = backend.Play(clip.Buffer, loop, volume);
         var voice = new AudioVoice(this, clip, source, loop);
+        var errors = new List<Exception>();
+        foreach (var completed in finished) AudioCleanup.Attempt(completed.DisposeCore, errors);
+        if (victim is not null) AudioCleanup.Attempt(victim.DisposeCore, errors);
+        if (errors.Count > 0)
+        {
+            // Не возвращаем и не теряем новую voice, если освобождение старых не удалось.
+            AudioCleanup.Attempt(voice.DisposeCore, errors);
+            AudioCleanup.ThrowIfFailed(errors);
+        }
         voices.Add(voice);
         return voice;
     }

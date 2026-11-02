@@ -27,7 +27,8 @@ internal sealed class OpenAlBackend : IAudioBackend
         var previous = ALC.GetCurrentContext();
         try
         {
-            context = ALC.CreateContext(device, new ALContextAttributes { MonoSources = 32, StereoSources = 32 });
+            // Один временный source нужен, чтобы не обрывать старую voice при неудачном Play.
+            context = ALC.CreateContext(device, new ALContextAttributes { MonoSources = 33, StereoSources = 33 });
             if (context == ALContext.Null || !ALC.MakeContextCurrent(context))
                 throw new InvalidOperationException($"OpenAL: не создан аудиоконтекст ({ALC.GetError(device)})");
             AL.Listener(ALListenerf.Gain, 1f);
@@ -116,7 +117,17 @@ internal sealed class OpenAlBackend : IAudioBackend
     }
 
     public void Pause(int source) { using var scope = Enter(); AL.SourcePause(source); Check(); }
-    public void Resume(int source) { using var scope = Enter(); AL.SourcePlay(source); Check(); }
+    public void Resume(int source)
+    {
+        using var scope = Enter();
+        var state = (ALSourceState)AL.GetSource(source, ALGetSourcei.SourceState);
+        Check();
+        // One-shot мог закончиться между проверкой Finished и SourcePause.
+        // SourcePlay на Stopped запустил бы его заново вместо продолжения паузы.
+        if (state != ALSourceState.Paused) return;
+        AL.SourcePlay(source);
+        Check();
+    }
     public void Stop(int source) { using var scope = Enter(); AL.SourceStop(source); Check(); }
     public void SetMasterVolume(float volume) { using var scope = Enter(); AL.Listener(ALListenerf.Gain, volume); Check(); }
 

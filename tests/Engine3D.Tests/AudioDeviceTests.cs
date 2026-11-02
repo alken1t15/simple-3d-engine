@@ -66,6 +66,107 @@ public sealed class AudioDeviceTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void FailedPlayAtLimitPreservesExistingVoices(bool hasCompletedVoice)
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        var voices = Enumerable.Range(0, 32).Select(_ => device.Play(clip)).ToArray();
+        var sources = backend.Sources.Keys.ToArray();
+        if (hasCompletedVoice) backend.Completed.Add(sources[15]);
+        backend.Calls.Clear();
+        backend.FailOn = "play";
+        try
+        {
+            var error = Assert.ThrowsExactly<InvalidOperationException>(() => device.Play(clip));
+            StringAssert.Contains(error.Message, "injected play");
+            CollectionAssert.AreEquivalent(sources, backend.Sources.Keys.ToArray());
+            Assert.DoesNotContain("stop", backend.Calls);
+            Assert.DoesNotContain("delete-source", backend.Calls);
+        }
+        finally { backend.FailOn = null; }
+        foreach (var voice in voices) voice.Pause();
+    }
+
+    [TestMethod]
+    public void PlayReclaimsAllCompletedEffectsBelowLimitAndSkipsLoops()
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        using var music = device.Play(clip, loop: true);
+        using var paused = device.Play(clip);
+        paused.Pause();
+        var effects = Enumerable.Range(0, 8).Select(_ => device.Play(clip)).ToArray();
+        foreach (int source in backend.Sources.Keys.Skip(2)) backend.Completed.Add(source);
+        backend.Calls.Clear();
+        using var replacement = device.Play(clip);
+        Assert.HasCount(3, backend.Sources); // music, paused effect, replacement
+        Assert.AreEqual(8, backend.Calls.Count(call => call == "finished"));
+        foreach (var effect in effects) Assert.ThrowsExactly<ObjectDisposedException>(effect.Pause);
+        music.Pause();
+        paused.Resume();
+    }
+
+    [TestMethod]
+    public void RepeatedCompletedEffectsDoNotAccumulateSources()
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        for (int i = 0; i < 100; i++)
+        {
+            device.Play(clip);
+            Assert.HasCount(1, backend.Sources);
+            backend.Completed.Add(backend.Sources.Keys.Single());
+        }
+    }
+
+    [TestMethod]
+    public void FullLoopLimitDoesNotQueryNativeCompletion()
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        for (int i = 0; i < 32; i++) device.Play(clip, loop: true);
+        backend.Completed.UnionWith(backend.Sources.Keys); // Unexpected native STOPPED is not a normal loop finish.
+        backend.Calls.Clear();
+        Assert.ThrowsExactly<InvalidOperationException>(() => device.Play(clip));
+        Assert.IsEmpty(backend.Calls);
+    }
+
+    [TestMethod]
+    [DataRow("stop")]
+    [DataRow("delete-source")]
+    public void ReclaimFailureReleasesNewSourceAndReportsCleanupError(string operation)
+    {
+        var backend = new RecordingAudioBackend();
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile();
+        using var clip = device.LoadWave(file.Path);
+        var voices = Enumerable.Range(0, 32).Select(_ => device.Play(clip)).ToArray();
+        var oldSources = backend.Sources.Keys.ToArray();
+        backend.Calls.Clear();
+        backend.FailOn = operation;
+        backend.FailOnce = true;
+        try
+        {
+            var error = Assert.ThrowsExactly<InvalidOperationException>(() => device.Play(clip));
+            StringAssert.Contains(error.ToString(), $"injected {operation}");
+            Assert.IsLessThan(backend.Calls.IndexOf("stop"), backend.Calls.IndexOf("play"), "The replacement must be created before reclaiming the victim");
+            Assert.IsTrue(backend.Sources.Keys.All(oldSources.Contains), "A failed Play must not leave a new source behind");
+        }
+        finally { backend.FailOn = null; }
+        foreach (var voice in voices.Skip(1)) voice.Pause();
+    }
+
+    [TestMethod]
     public void ActiveLoopsAreProtectedAndStoppedLoopCanBeReclaimed()
     {
         var backend = new RecordingAudioBackend();

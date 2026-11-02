@@ -10,7 +10,7 @@ public sealed class AudioVoice : IDisposable
     private bool disposed;
     internal AudioClip Clip { get; }
     internal bool Loop { get; }
-    internal bool Finished => stopped || owner.Backend.IsFinished(source);
+    internal bool Finished => stopped || !Loop && !paused && owner.Backend.IsFinished(source);
 
     internal AudioVoice(AudioDevice owner, AudioClip clip, int source, bool loop)
     {

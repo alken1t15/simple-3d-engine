@@ -56,12 +56,17 @@ internal sealed class RecordingAudioBackend : IAudioBackend
     internal readonly List<string> Calls = [];
     internal float Master = 1f;
     internal string? FailOn;
+    internal bool FailOnce;
     private int id;
 
     private void Call(string name)
     {
         Calls.Add(name);
-        if (FailOn == name) throw new InvalidOperationException($"injected {name}");
+        if (FailOn == name)
+        {
+            if (FailOnce) FailOn = null;
+            throw new InvalidOperationException($"injected {name}");
+        }
     }
 
     public int LoadBuffer(WaveData wave) { Call("load"); int buffer = ++id; Buffers.Add(buffer); return buffer; }

@@ -8,6 +8,7 @@ public sealed class AudioNativeTests
 {
     internal const string NoDeviceScenario = "audio-no-device";
     internal const string NativeScenario = "audio-native";
+    internal const string ResumeRaceScenario = "audio-resume-race";
 
     [TestMethod]
     [OSCondition(OperatingSystems.Linux)]
@@ -30,13 +31,25 @@ public sealed class AudioNativeTests
         Assert.Contains("PASS audio native", result.Output);
     }
 
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    [NativeAudioTest]
+    public void NativeResumeDoesNotReplayEffectThatFinishesInsidePause()
+    {
+        var result = TestProcess.Run(new Dictionary<string, string?> { ["ALSOFT_DRIVERS"] = "null" }, ResumeRaceScenario);
+        Assert.AreEqual(0, result.ExitCode, result.Output);
+        Assert.Contains("PASS audio resume race", result.Output);
+    }
+
     internal static int Run(string scenario)
     {
         try
         {
             if (scenario == NoDeviceScenario) NoDevice();
+            else if (scenario == ResumeRaceScenario) ResumeRace();
             else Native();
-            Console.WriteLine(scenario == NoDeviceScenario ? "PASS audio no-device" : "PASS audio native");
+            Console.WriteLine(scenario == NoDeviceScenario ? "PASS audio no-device"
+                : scenario == ResumeRaceScenario ? "PASS audio resume race" : "PASS audio native");
             return 0;
         }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
@@ -122,6 +135,61 @@ public sealed class AudioNativeTests
         start.Set();
         foreach (var thread in threads) Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(20)), "Native owner thread timeout");
         Assert.IsEmpty(errors, string.Join(Environment.NewLine, errors));
+    }
+
+    private static void ResumeRace()
+    {
+        var backend = new CompletingPauseBackend(OpenAlBackend.Open());
+        using var device = new AudioDevice(backend);
+        using var file = new AudioFile(AudioFile.Wave(rate: 8000, samples: new byte[8000])); // 0.5 seconds
+        using var clip = device.LoadWave(file.Path);
+        using var effect = device.Play(clip, volume: 0f);
+        backend.CompleteOnNextPause = true;
+        effect.Pause();
+        Assert.IsTrue(backend.PauseCalled, "Pause must reach the backend after Finished returned false");
+        Assert.IsTrue(backend.IsFinished(backend.LastSource));
+        effect.Resume();
+        Assert.IsTrue(backend.IsFinished(backend.LastSource), "Resume must not restart the naturally finished effect");
+        effect.Resume();
+        Assert.IsTrue(backend.IsFinished(backend.LastSource));
+
+        using var loop = device.Play(clip, loop: true, volume: 0f);
+        loop.Pause();
+        loop.Resume();
+        Assert.IsFalse(backend.IsFinished(backend.LastSource));
+        loop.Stop();
+        // Native Resume must also leave an explicitly stopped source stopped.
+        backend.Resume(backend.LastSource);
+        Assert.IsTrue(backend.IsFinished(backend.LastSource));
+    }
+
+    private sealed class CompletingPauseBackend(IAudioBackend inner) : IAudioBackend
+    {
+        internal bool CompleteOnNextPause;
+        internal bool PauseCalled;
+        internal int LastSource;
+        public int LoadBuffer(WaveData wave) => inner.LoadBuffer(wave);
+        public void DeleteBuffer(int buffer) => inner.DeleteBuffer(buffer);
+        public int Play(int buffer, bool loop, float volume) => LastSource = inner.Play(buffer, loop, volume);
+        public bool IsFinished(int source) => inner.IsFinished(source);
+        public void Pause(int source)
+        {
+            PauseCalled = true;
+            if (CompleteOnNextPause)
+            {
+                CompleteOnNextPause = false;
+                // Моделируем вытеснение owner thread после проверки Finished. Ждём
+                // реального естественного окончания; source не останавливаем сами.
+                Assert.IsTrue(SpinWait.SpinUntil(() => inner.IsFinished(source), TimeSpan.FromSeconds(5)),
+                    "The one-shot must finish before the native pause call");
+            }
+            inner.Pause(source);
+        }
+        public void Resume(int source) => inner.Resume(source);
+        public void Stop(int source) => inner.Stop(source);
+        public void DeleteSource(int source) => inner.DeleteSource(source);
+        public void SetMasterVolume(float volume) => inner.SetMasterVolume(volume);
+        public void Dispose() => inner.Dispose();
     }
 }
 
