@@ -40,14 +40,15 @@
 
 ## Структура solution
 
-`Engine3D.sln` содержит ровно четыре проекта:
+`Engine3D.sln` содержит пять проектов: четыре базовых и отдельный аудиосервис:
 
 | Проект | Назначение | Ссылки на проекты |
 |---|---|---|
 | `src/Engine3D.Core` | Модель сцены и CPU-данные без окна и OpenGL: `Vertex`, `MeshData`, `TextureData`, `MaterialData`, `Transform`, `Camera`, `Scene`, `SceneLighting` (#7), `PrimitiveFactory` (#8), `SceneSerializer` и `SceneSnapshot` (#25). | Нет |
 | `src/Engine3D.OpenGL` | Публичный `Engine` и `EngineOptions` (#9): окно и контекст OpenGL 3.3 через OpenTK, цикл `Run`, GPU-кэш мешей, depth test и базовый свет. `LoadTexture` и GPU-кэш текстур — #10. | `Engine3D.Core` |
+| `src/Engine3D.Audio` | Отдельное устройство, PCM WAV, voices/loop/volume и silent fallback для приложений. | Нет project references; OpenTK.Audio.OpenAL |
 | `src/Engine3D.Demo` | Demo #11 на публичном API: вращение и облёт MVP, изменение света C, JSON D и статический показ. | `Engine3D.Core`, `Engine3D.OpenGL` |
-| `tests/Engine3D.Tests` | MSTest: CPU-тесты Core, OpenGL-слоя и сценариев/параметров Demo; графические тесты `Engine` по `ENGINE3D_GRAPHICS_TESTS=1`. | `Engine3D.Core`, `Engine3D.OpenGL`, `Engine3D.Demo` |
+| `tests/Engine3D.Tests` | MSTest: CPU-тесты, графические по `ENGINE3D_GRAPHICS_TESTS=1`, native audio по `ENGINE3D_AUDIO_TESTS=1`. | `Engine3D.Core`, `Engine3D.OpenGL`, `Engine3D.Demo`, `Engine3D.Audio` |
 
 Все проекты собираются для `net10.0`, с включенными `Nullable` и `ImplicitUsings`. `Engine3D.Core` содержит CPU-модели сцены и JSON-сериализацию на System.Text.Json из .NET, `Engine3D.OpenGL` — рендер на OpenTK 4.9.4 и декодер PNG StbImageSharp 2.30.16. Demo использует только публичный API библиотек, без OpenTK и прямых вызовов OpenGL. Дополнительных проектов и пакетов для Demo нет.
 
@@ -263,6 +264,26 @@ dotnet test Engine3D.sln --configuration Release --no-build
 после активации окна зажатые клавиши требуют отпускания и нового нажатия.
 Существующая сигнатура `Run` сохранена; управление Demo остаётся прежним.
 [Контракт, пример и проверки](docs/keyboard-input.md).
+
+## Звук для приложений
+
+Реализован отдельный `Engine3D.Audio`: PCM WAV16 mono/stereo 8–48 kHz,
+независимые voices, loop, pause/resume/stop, master volume и диагностируемый
+silent fallback. Linux backend — OpenAL Soft (`libopenal1`), без создания окна.
+`Engine.Create` звук автоматически не запускает; Core и Scene от аудио не зависят.
+
+```sh
+dotnet build samples/AudioSample -c Release
+dotnet run --project samples/AudioSample -c Release --no-build -- --interactive
+```
+
+Пример пошагово проверяет собственные тестовые тоны, а не игровые ресурсы.
+[Контракт и использование](docs/audio.md), [проверки и ручной протокол](docs/audio-testing.md),
+[backend spike](spikes/OpenAlSpike/README.md). Нативные тесты без звукового вывода:
+
+```sh
+dotnet test Engine3D.sln -c Release --no-build --environment ENGINE3D_AUDIO_TESTS=1 --filter 'FullyQualifiedName~Audio|FullyQualifiedName~WaveData'
+```
 
 ## Права
 

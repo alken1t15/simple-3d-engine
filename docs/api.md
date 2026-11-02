@@ -413,3 +413,17 @@ engine.Run(loaded.Scene, loaded.Camera, dt =>
 Save/Load реализованы в #25; эскиз показывает публичный путь для Demo #11. Для проверки D выбрать статическую сцену с cube/plane, двумя объектами на общем mesh и текстурой; после загрузки сравнить transform, материалы/пути, камеру и свет. В C смена направления меняет яркость граней при корректных UV/depth.
 
 CPU-тесты #12 проверяют нормали примитивов и их преобразование при неравномерном масштабе, round-trip в новую сцену, общую ссылку mesh, пути относительно JSON и кеширование декодирования внутри Load. Текстурный loader в CPU-тесте возвращает `new TextureData(...)`, без Engine. CPU-проверки сериализации из этого списка реализованы в #25: `SceneSerializerSaveTests`, `SceneSerializerLoadTests`, `SceneDocumentValidationTests`. Битые ссылки, версия/kind, отсутствующие поля, невалидные camera/quaternion/light/scale, unsupported mesh/texture без SourcePath, null/ошибка loader имеют отдельные проверки. Численные допуски обосновать в тестах; побайтовое равенство GPU-кадров не обещается. Визуальная приемка C/D — #11/#13, финальный FPS со светом после загрузки и прогрева — #14.
+
+## 11. Отдельный аудиосервис
+
+Добавлен Engine3D.Audio для [задачи #18 игры](https://github.com/alken1t15/simple-platformer/issues/18).
+AudioDevice.Create(options), MasterVolume, LoadWave, Play, StopAll и IDisposable
+не связаны с Engine.Create/Scene/renderer. AudioClip и AudioVoice принадлежат
+своему устройству; все операции — на потоке создания. Публичный API не раскрывает
+OpenTK/AL handles. Поддержан PCM WAV16 mono/stereo 8–48 kHz и silent fallback,
+который сохраняет валидацию файлов/аргументов. Сигнатуры, исключения, лимит 32 voices,
+порядок вытеснения и cleanup — [контракт аудио](audio.md). Изменение не меняет
+графический цикл, матрицы, клавиатуру, JSON или существующие сценарии Demo.
+
+[Авторские CPU/native-проверки и ручной Linux-протокол](audio-testing.md),
+[пример клиента публичного API](../samples/AudioSample/Program.cs).

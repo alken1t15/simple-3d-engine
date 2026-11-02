@@ -27,6 +27,9 @@ public static class TestProcess
 
     public static int Main(string[] args) => args switch
     {
+        [AudioNativeTests.NoDeviceScenario] => AudioNativeTests.Run(AudioNativeTests.NoDeviceScenario),
+        [AudioNativeTests.NativeScenario] => AudioNativeTests.Run(AudioNativeTests.NativeScenario),
+        [AudioNativeTests.ResumeRaceScenario] => AudioNativeTests.Run(AudioNativeTests.ResumeRaceScenario),
         [CreateWithoutDisplayScenario] => CreateWithoutDisplay(restoreDisplay: null),
         [CreateWithoutDisplayScenario, var display] => CreateWithoutDisplay(display),
         [TextureSmokeScenario] => TextureSmoke(null),
