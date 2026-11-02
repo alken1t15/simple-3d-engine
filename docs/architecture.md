@@ -6,14 +6,15 @@
 
 ## 1. Архитектурное решение
 
-Проект состоит из **двух библиотек, демо-приложения и тестового проекта**:
+Проект состоит из **трёх библиотек, демо-приложения и тестового проекта**:
 
 | Сборка | Зависит от | Что содержит |
 |---|---|---|
 | `Engine3D.Core` | стандартная библиотека .NET | Сцена, объекты, камера, данные сетки и текстуры, материал, трансформации, фабрика куба/плоскости с нормалями, параметры света, JSON-сериализатор с внутренними DTO, проверки входных данных. Не создает окно и не обращается к OpenGL. |
 | `Engine3D.OpenGL` | `Engine3D.Core`, OpenTK, выбранный декодер изображения | Публичный `Engine`, окно/контекст, цикл событий, OpenGL-рендерер, загрузка изображения с SourcePath, базовый lit-шейдер, GPU-кэш и освобождение GPU-ресурсов. |
+| `Engine3D.Audio` | OpenTK.Audio.OpenAL, системная OpenAL Soft | Отдельный сервис WAV/voices/volume, owner-thread, cleanup и silent fallback; без зависимости от Core/Scene/окна. [Контракт](audio.md). |
 | `Engine3D.Demo` | публичные типы двух библиотек | Сцены показа и нагрузки, изменение камеры/transform/света, вызов Save/Load и передача textureLoader, запись условий FPS-замера. Прямые вызовы OpenGL исключены. |
-| `Engine3D.Tests` | `Core`, `OpenGL`, `Demo` (внутренние детали — через InternalsVisibleTo) | CPU-тесты данных и сценариев/параметров Demo без окна; графические тесты `Engine` только при `ENGINE3D_GRAPHICS_TESTS=1`. |
+| `Engine3D.Tests` | `Core`, `OpenGL`, `Demo`, `Audio` (внутренние детали — через InternalsVisibleTo) | CPU-тесты без окна; графические при `ENGINE3D_GRAPHICS_TESTS=1`, native audio при `ENGINE3D_AUDIO_TESTS=1`. |
 
 Не добавлять отдельные сборки `Application`, `Infrastructure`, `Resources`, `Shaders` и т. п., пока реальная связность/объем кода не потребуют разделения. Единственный рендерер — OpenGL; интерфейс сменяемого graphics backend в P0 не нужен.
 
@@ -28,6 +29,8 @@ flowchart LR
     Tests --> Core
     Tests --> API
     Tests --> Demo
+    Tests --> Audio[Engine3D.Audio]
+    Client[клиент игры] --> Audio
 ```
 
 Внешняя программа видит `Engine`, `Scene`, `Camera`, `SceneObject`, `MeshData`, `MaterialData`, `TextureData`, `SceneLighting`, `SceneSerializer`, `SceneSnapshot`. Она не видит VAO/VBO/EBO, OpenGL-идентификаторы, шейдерные программы и внутренний кэш.
