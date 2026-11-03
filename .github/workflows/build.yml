@@ -84,7 +84,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             xvfb xauth libgl1 libgl1-mesa-dri \
-            libx11-6 libxcursor1 libxext6 libxi6 libxinerama1 libxrandr2
+            libx11-6 libxcursor1 libxext6 libxi6 libxinerama1 libxrandr2 libxtst6
       - name: Restore dependencies
         run: dotnet restore Engine3D.sln
       - name: Build solution
@@ -92,6 +92,12 @@ jobs:
       - name: Run tests with a graphics context
         timeout-minutes: 5
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet test Engine3D.sln --configuration Release --no-build --logger "trx;LogFileName=graphics-tests.trx" --results-directory artifacts/graphics-tests
+      - name: Build and smoke public input sample
+        run: |
+          dotnet build samples/InputSample -c Release
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet run --project samples/InputSample -c Release --no-build -- --smoke
+      - name: Test native X11 input and cursor through public API
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' python scripts/check_input_x11.py
       - name: Upload graphics test results
         if: always()
         uses: actions/upload-artifact@v7

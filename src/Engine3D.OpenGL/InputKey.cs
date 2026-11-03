@@ -10,4 +10,12 @@ public enum InputKey
     Space,
     R,
     Escape,
+    W,
+    S,
+    LeftShift,
+    RightShift,
+    Enter,
+    Up,
+    Down,
+    Tab,
 }

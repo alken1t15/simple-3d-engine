@@ -11,6 +11,8 @@ internal sealed class KeyboardInput
 
     internal InputSnapshot Snapshot => new(_focused, _down, _pressed, _released);
 
+    internal InputSnapshot WithPointer(PointerSnapshot pointer) => new(_focused, _down, _pressed, _released, pointer);
+
     internal void BeginFrame() => _pressed = _released = 0;
 
     internal void SetFocus(bool focused)

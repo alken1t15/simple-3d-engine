@@ -6,6 +6,28 @@ namespace Engine3D.Tests;
 [TestClass]
 public sealed class KeyboardInputTests
 {
+    [TestMethod]
+    public void Existing_numeric_values_are_preserved_and_new_keys_have_distinct_bits()
+    {
+        InputKey[] original = [InputKey.A, InputKey.D, InputKey.Left, InputKey.Right, InputKey.Space, InputKey.R, InputKey.Escape];
+        for (int i = 0; i < original.Length; i++) Assert.AreEqual(i, (int)original[i]);
+        InputKey[] added = [InputKey.W, InputKey.S, InputKey.LeftShift, InputKey.RightShift, InputKey.Enter, InputKey.Up, InputKey.Down, InputKey.Tab];
+        var input = Focused();
+        foreach (var key in added)
+        {
+            input.BeginFrame();
+            input.KeyDown(key, false);
+            input.KeyDown(key, true);
+            Assert.IsTrue(input.Snapshot.WasPressed(key));
+            input.BeginFrame();
+            input.KeyDown(key, true);
+            Assert.IsFalse(input.Snapshot.WasPressed(key));
+            input.KeyUp(key);
+            Assert.IsTrue(input.Snapshot.WasReleased(key));
+        }
+        Assert.AreEqual(15, Enum.GetValues<InputKey>().Select(InputSnapshot.Mask).Distinct().Count());
+    }
+
     private static KeyboardInput Focused()
     {
         var input = new KeyboardInput();
@@ -115,7 +137,7 @@ public sealed class KeyboardInputTests
 
     [TestMethod]
     [DataRow(-1)]
-    [DataRow(7)]
+    [DataRow(15)]
     [DataRow(int.MaxValue)]
     public void Invalid_keys_throw_for_all_snapshot_queries(int key)
     {
