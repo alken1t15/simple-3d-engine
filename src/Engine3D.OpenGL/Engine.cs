@@ -7,6 +7,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using GlfwErrorCode = OpenTK.Windowing.GraphicsLibraryFramework.ErrorCode;
+using NativeMouseButton = OpenTK.Windowing.GraphicsLibraryFramework.MouseButton;
+using NumericsVector2 = System.Numerics.Vector2;
 
 namespace Engine3D.OpenGL;
 
@@ -33,6 +35,9 @@ public sealed class Engine : IDisposable
     private readonly SceneRenderer _renderer;
     private readonly FramePreparation _frame = new();
     private readonly KeyboardInput _input = new();
+    private readonly PointerInput _pointer = new();
+    private InputSnapshot _snapshot;
+    private CursorMode _cursorMode;
     private readonly int _ownerThreadId;
     private Scene? _scene;
     private Camera? _camera;
@@ -58,6 +63,9 @@ public sealed class Engine : IDisposable
         _window.KeyDown += OnKeyDown;
         _window.KeyUp += OnKeyUp;
         _window.FocusedChanged += OnFocusedChanged;
+        _window.MouseMove += OnMouseMove;
+        _window.MouseDown += OnMouseDown;
+        _window.MouseUp += OnMouseUp;
     }
 
     /// <summary>
@@ -81,7 +89,36 @@ public sealed class Engine : IDisposable
             ThrowIfWrongThread();
             if (!_inUpdate)
                 throw new InvalidOperationException("Input is available only inside onUpdate.");
-            return _input.Snapshot;
+            return _snapshot;
+        }
+    }
+
+    /// <summary>
+    /// Режим курсора на потоке Create. Set допустим до Run или внутри onUpdate; после Run запрещён.
+    /// Потеря фокуса сбрасывает в Normal; возврат фокуса сам не включает capture.
+    /// Попытка захвата во время Run без фокуса оставляет Normal.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Engine освобождён.</exception>
+    /// <exception cref="InvalidOperationException">Неверный поток или момент изменения.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Неизвестный режим.</exception>
+    public CursorMode CursorMode
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            return _cursorMode;
+        }
+        set
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            if (_state != State.Created && !(_state == State.Running && _inUpdate))
+                throw new InvalidOperationException("CursorMode can be changed only before Run or inside onUpdate.");
+            if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            if (_state == State.Running && !_window.IsFocused) value = CursorMode.Normal;
+            SetCursorMode(value);
+            ThrowIfGlfwError("changing cursor mode");
         }
     }
 
@@ -243,6 +280,7 @@ public sealed class Engine : IDisposable
             _state = State.Finished;
             _scene = null;
             _camera = null;
+            SetCursorMode(CursorMode.Normal);
             _window.IsVisible = false;
         }
     }
@@ -287,6 +325,9 @@ public sealed class Engine : IDisposable
             _window.KeyDown -= OnKeyDown;
             _window.KeyUp -= OnKeyUp;
             _window.FocusedChanged -= OnFocusedChanged;
+            _window.MouseMove -= OnMouseMove;
+            _window.MouseDown -= OnMouseDown;
+            _window.MouseUp -= OnMouseUp;
             _window.Dispose();
         }
         catch (Exception exception)
@@ -303,12 +344,15 @@ public sealed class Engine : IDisposable
     {
         _window.IsVisible = true;
         _input.SetFocus(_window.IsFocused);
+        _pointer.SetFocus(_window.IsFocused);
+        if (!_window.IsFocused) SetCursorMode(CursorMode.Normal);
         var clock = Stopwatch.StartNew();
         double? previousUpdate = null;
 
         while (true)
         {
             _input.BeginFrame();
+            _pointer.BeginFrame();
             _window.NewInputFrame();
             NativeWindow.ProcessWindowEvents(waitForEvents: false);
             ThrowIfGlfwError("processing window events");
@@ -316,7 +360,12 @@ public sealed class Engine : IDisposable
             if (_closeRequested || _window.IsExiting)
                 break;
 
-            _input.ReconcileHeld(ReadHeldKeys());
+            if (_input.NeedsRearm) _input.ReconcileHeld(ReadHeldKeys());
+            _pointer.ReconcileHeld(ReadHeldButtons());
+            _pointer.SynchronizePosition(ReadPointerPosition());
+            var clientSize = _window.ClientSize;
+            _snapshot = _input.WithPointer(_pointer.Snapshot(clientSize.X, clientSize.Y));
+            ThrowIfGlfwError("reading input state");
 
             double now = clock.Elapsed.TotalSeconds;
             float deltaSeconds = previousUpdate is { } previous ? (float)(now - previous) : 0f;
@@ -393,10 +442,71 @@ public sealed class Engine : IDisposable
             _input.KeyUp(key);
     }
 
-    private void OnFocusedChanged(FocusedChangedEventArgs args) => _input.SetFocus(args.IsFocused);
+    private void OnFocusedChanged(FocusedChangedEventArgs args)
+    {
+        _input.SetFocus(args.IsFocused);
+        _pointer.SetFocus(args.IsFocused);
+        if (!args.IsFocused) SetCursorMode(CursorMode.Normal);
+    }
+
+    private void SetCursorMode(CursorMode mode)
+    {
+        if (_cursorMode == mode) return;
+        _pointer.ResetMotion();
+        _window.CursorState = mode == CursorMode.Captured ? CursorState.Grabbed : CursorState.Normal;
+        _cursorMode = mode;
+        // SetInputMode может синхронно вызвать MouseMove; следующий отложенный delta тоже подавляется.
+        _pointer.ResetMotion();
+    }
+
+    private void OnMouseMove(MouseMoveEventArgs args) => _pointer.Move(
+        new NumericsVector2(args.Position.X, args.Position.Y), new NumericsVector2(args.Delta.X, args.Delta.Y));
+
+    private unsafe NumericsVector2 ReadPointerPosition()
+    {
+        // NativeWindow.MousePosition — событийный кэш: после CursorLeave он может остаться внутри.
+        // GLFW запрашивает backend в Normal и возвращает виртуальную позицию в Captured.
+        GLFW.GetCursorPos(_window.WindowPtr, out double x, out double y);
+        return new NumericsVector2((float)x, (float)y);
+    }
+
+    private void OnMouseDown(MouseButtonEventArgs args)
+    {
+        if (MapButton(args.Button) is { } button) _pointer.ButtonDown(button);
+    }
+
+    private void OnMouseUp(MouseButtonEventArgs args)
+    {
+        if (MapButton(args.Button) is { } button) _pointer.ButtonUp(button);
+    }
+
+    private uint ReadHeldButtons()
+    {
+        uint result = 0;
+        foreach (var (native, button) in s_buttons)
+            if (_window.MouseState.IsButtonDown(native)) result |= PointerSnapshot.Mask(button);
+        return result;
+    }
+
+    private static readonly (NativeMouseButton Native, MouseButton Button)[] s_buttons =
+    [
+        (NativeMouseButton.Left, MouseButton.Left), (NativeMouseButton.Right, MouseButton.Right),
+        (NativeMouseButton.Middle, MouseButton.Middle),
+    ];
+
+    private static MouseButton? MapButton(NativeMouseButton button) => button switch
+    {
+        NativeMouseButton.Left => MouseButton.Left,
+        NativeMouseButton.Right => MouseButton.Right,
+        NativeMouseButton.Middle => MouseButton.Middle,
+        _ => null,
+    };
 
     private uint ReadHeldKeys()
     {
+        // X11 очищает GLFW/OpenTK cache при focus loss. Его первый autorepeat после
+        // focus gain выглядит как новый press, поэтому rearm использует XQueryKeymap.
+        if (X11KeyboardState.TryReadHeldKeys(s_keys, out uint physical)) return physical;
         uint result = 0;
         foreach (var (native, key) in s_keys)
         {
@@ -411,6 +521,9 @@ public sealed class Engine : IDisposable
         (Keys.A, InputKey.A), (Keys.D, InputKey.D), (Keys.Left, InputKey.Left),
         (Keys.Right, InputKey.Right), (Keys.Space, InputKey.Space), (Keys.R, InputKey.R),
         (Keys.Escape, InputKey.Escape),
+        (Keys.W, InputKey.W), (Keys.S, InputKey.S), (Keys.LeftShift, InputKey.LeftShift),
+        (Keys.RightShift, InputKey.RightShift), (Keys.Enter, InputKey.Enter), (Keys.Up, InputKey.Up),
+        (Keys.Down, InputKey.Down), (Keys.Tab, InputKey.Tab),
     ];
 
     private static InputKey? MapKey(Keys key) => key switch
@@ -422,6 +535,14 @@ public sealed class Engine : IDisposable
         Keys.Space => InputKey.Space,
         Keys.R => InputKey.R,
         Keys.Escape => InputKey.Escape,
+        Keys.W => InputKey.W,
+        Keys.S => InputKey.S,
+        Keys.LeftShift => InputKey.LeftShift,
+        Keys.RightShift => InputKey.RightShift,
+        Keys.Enter => InputKey.Enter,
+        Keys.Up => InputKey.Up,
+        Keys.Down => InputKey.Down,
+        Keys.Tab => InputKey.Tab,
         _ => null,
     };
 

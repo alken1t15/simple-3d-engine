@@ -6,6 +6,52 @@ namespace Engine3D.Tests;
 [TestClass]
 public sealed class KeyboardInputTests
 {
+    [TestMethod]
+    public void Physical_held_key_stays_blocked_even_if_native_repeat_is_reported_as_new_press()
+    {
+        var input = Focused();
+        input.KeyDown(InputKey.W, false);
+        input.SetFocus(false);
+        input.SetFocus(true);
+        for (int frame = 0; frame < 120; frame++)
+        {
+            input.BeginFrame();
+            input.ReconcileHeld(InputSnapshot.Mask(InputKey.W));
+            Assert.IsTrue(input.NeedsRearm);
+            input.KeyDown(InputKey.W, false); // GLFW cache после focus loss не помнит старый press
+            Assert.IsFalse(input.Snapshot.IsDown(InputKey.W));
+            Assert.IsFalse(input.Snapshot.WasPressed(InputKey.W));
+        }
+        input.KeyUp(InputKey.W);
+        input.ReconcileHeld(0);
+        Assert.IsFalse(input.NeedsRearm);
+        Assert.IsFalse(input.Snapshot.WasReleased(InputKey.W));
+        input.KeyDown(InputKey.W, false);
+        Assert.IsTrue(input.Snapshot.WasPressed(InputKey.W));
+    }
+
+    [TestMethod]
+    public void Existing_numeric_values_are_preserved_and_new_keys_have_distinct_bits()
+    {
+        InputKey[] original = [InputKey.A, InputKey.D, InputKey.Left, InputKey.Right, InputKey.Space, InputKey.R, InputKey.Escape];
+        for (int i = 0; i < original.Length; i++) Assert.AreEqual(i, (int)original[i]);
+        InputKey[] added = [InputKey.W, InputKey.S, InputKey.LeftShift, InputKey.RightShift, InputKey.Enter, InputKey.Up, InputKey.Down, InputKey.Tab];
+        var input = Focused();
+        foreach (var key in added)
+        {
+            input.BeginFrame();
+            input.KeyDown(key, false);
+            input.KeyDown(key, true);
+            Assert.IsTrue(input.Snapshot.WasPressed(key));
+            input.BeginFrame();
+            input.KeyDown(key, true);
+            Assert.IsFalse(input.Snapshot.WasPressed(key));
+            input.KeyUp(key);
+            Assert.IsTrue(input.Snapshot.WasReleased(key));
+        }
+        Assert.AreEqual(15, Enum.GetValues<InputKey>().Select(InputSnapshot.Mask).Distinct().Count());
+    }
+
     private static KeyboardInput Focused()
     {
         var input = new KeyboardInput();
@@ -115,7 +161,7 @@ public sealed class KeyboardInputTests
 
     [TestMethod]
     [DataRow(-1)]
-    [DataRow(7)]
+    [DataRow(15)]
     [DataRow(int.MaxValue)]
     public void Invalid_keys_throw_for_all_snapshot_queries(int key)
     {

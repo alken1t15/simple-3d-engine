@@ -256,14 +256,28 @@ dotnet test Engine3D.sln --configuration Release --no-build
 
 До параллельной разработки зафиксировать формат данных и жизненный цикл API; далее работать через небольшие задачи и pull request. Правила ревью и проверок — в [процессе разработки](docs/development-process.md). Публичные изменения в API должны сохранять сценарии A–D из [требований](docs/requirements.md).
 
-## Клавиатурный ввод для приложений
+## Клавиатура, мышь и курсор для приложений
 
 В callback `onUpdate` доступен `engine.Input`: неизменяемый снимок фокуса, удержаний
-и фронтов клавиш `A/D`, стрелок влево/вправо, `Space`, `R`, `Escape`.
+и фронтов клавиш WASD, стрелок, Space, обоих Shift, R, Escape, Enter, Tab,
+а также `Pointer` с позицией, relative delta и тремя кнопками мыши.
 Публичный API не раскрывает OpenTK-типы. Потеря фокуса очищает ввод;
 после активации окна зажатые клавиши требуют отпускания и нового нажатия.
-Существующая сигнатура `Run` сохранена; управление Demo остаётся прежним.
+`engine.CursorMode` переключает Normal/Captured; focus loss освобождает cursor,
+возврат фокуса не захватывает его автоматически. Существующая сигнатура `Run` сохранена;
+управление Demo остаётся прежним. Отдельный пример использует только публичный API:
+
+```sh
+dotnet build samples/InputSample -c Release
+dotnet run --project samples/InputSample -c Release --no-build
+dotnet run --project samples/InputSample -c Release --no-build -- --smoke
+```
+
+Enter захватывает/освобождает мышь; Escape сначала освобождает, затем закрывает окно.
+WASD/стрелки двигают куб, Shift ускоряет, мышь вращает при capture, Space/кнопки меняют
+цвет, R сбрасывает. Smoke ограничен тремя кадрами и не включает capture.
 [Контракт, пример и проверки](docs/keyboard-input.md).
+[Linux-прогон и чек-лист](docs/input-testing.md).
 
 ## Звук для приложений
 

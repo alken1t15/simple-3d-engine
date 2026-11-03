@@ -12,6 +12,52 @@ namespace Engine3D.Tests;
 public sealed class EngineLifecycleTests
 {
     [TestMethod]
+    public void Cursor_mode_obeys_owner_thread_lifecycle_and_releases_after_Run()
+    {
+        var engine = CreateEngine(nameof(Cursor_mode_obeys_owner_thread_lifecycle_and_releases_after_Run));
+        try
+        {
+            Assert.AreEqual(CursorMode.Normal, engine.CursorMode);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => engine.CursorMode = (CursorMode)2);
+            Assert.ThrowsExactly<InvalidOperationException>(() => Task.Run(() => engine.CursorMode).GetAwaiter().GetResult());
+            Assert.ThrowsExactly<InvalidOperationException>(() => Task.Run(() => engine.CursorMode = CursorMode.Normal).GetAwaiter().GetResult());
+            engine.CursorMode = CursorMode.Captured;
+            Assert.AreEqual(CursorMode.Captured, engine.CursorMode);
+            engine.CursorMode = CursorMode.Normal;
+            int updates = 0;
+            engine.FrameRendered = (_, _, _) =>
+                Assert.ThrowsExactly<InvalidOperationException>(() => engine.CursorMode = CursorMode.Normal);
+            engine.Run(new Scene(), new Camera(), _ =>
+            {
+                var saved = engine.Input;
+                engine.CursorMode = CursorMode.Captured;
+                Assert.AreEqual(saved.IsFocused ? CursorMode.Captured : CursorMode.Normal, engine.CursorMode);
+                Assert.AreEqual(saved.Pointer, engine.Input.Pointer); // snapshot стабилен даже после смены режима
+                if (++updates == 3) engine.RequestClose();
+            });
+            Assert.AreEqual(CursorMode.Normal, engine.CursorMode);
+            Assert.ThrowsExactly<InvalidOperationException>(() => engine.CursorMode = CursorMode.Normal);
+        }
+        finally { engine.Dispose(); }
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = engine.CursorMode);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => engine.CursorMode = CursorMode.Normal);
+    }
+
+    [TestMethod]
+    public void Callback_failure_also_releases_captured_cursor()
+    {
+        using var engine = CreateEngine(nameof(Callback_failure_also_releases_captured_cursor));
+        var failure = new InvalidTimeZoneException("input callback failed");
+        var thrown = Assert.ThrowsExactly<InvalidTimeZoneException>(() => engine.Run(new Scene(), new Camera(), _ =>
+        {
+            engine.CursorMode = CursorMode.Captured;
+            throw failure;
+        }));
+        Assert.AreSame(failure, thrown);
+        Assert.AreEqual(CursorMode.Normal, engine.CursorMode);
+    }
+
+    [TestMethod]
     public void Input_is_available_only_on_owner_thread_inside_update()
     {
         var engine = CreateEngine(nameof(Input_is_available_only_on_owner_thread_inside_update));

@@ -1,7 +1,7 @@
 namespace Engine3D.OpenGL;
 
 /// <summary>
-/// Неизменяемый снимок клавиатуры после обработки событий перед onUpdate.
+/// Неизменяемый снимок клавиатуры и указателя после обработки событий перед onUpdate.
 /// Сохранённый снимок не меняется в следующих кадрах; default означает отсутствие фокуса и ввода.
 /// </summary>
 public readonly struct InputSnapshot
@@ -10,15 +10,19 @@ public readonly struct InputSnapshot
     private readonly uint _pressed;
     private readonly uint _released;
 
-    internal InputSnapshot(bool isFocused, uint down, uint pressed, uint released)
+    internal InputSnapshot(bool isFocused, uint down, uint pressed, uint released, PointerSnapshot pointer = default)
     {
         IsFocused = isFocused;
         _down = down;
         _pressed = pressed;
         _released = released;
+        Pointer = pointer;
     }
 
     public bool IsFocused { get; }
+
+    /// <summary>Указатель из того же пакета оконных событий, в логических координатах client area.</summary>
+    public PointerSnapshot Pointer { get; }
 
     /// <summary>Клавиша удерживается; при потере фокуса всегда false.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Неподдерживаемое значение InputKey.</exception>
@@ -32,11 +36,11 @@ public readonly struct InputSnapshot
     /// <exception cref="ArgumentOutOfRangeException">Неподдерживаемое значение InputKey.</exception>
     public bool WasReleased(InputKey key) => (_released & Mask(key)) != 0;
 
-    internal const uint AllKeys = (1u << 7) - 1;
+    internal const uint AllKeys = (1u << ((int)InputKey.Tab + 1)) - 1;
 
     internal static uint Mask(InputKey key)
     {
-        if ((uint)key > (uint)InputKey.Escape)
+        if ((uint)key > (uint)InputKey.Tab)
             throw new ArgumentOutOfRangeException(nameof(key), key, "Unsupported input key.");
         return 1u << (int)key;
     }
