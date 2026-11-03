@@ -7,6 +7,24 @@ namespace Engine3D.Tests;
 [TestClass]
 public sealed class PointerInputTests
 {
+    [TestMethod]
+    public void Backend_position_refresh_handles_exit_and_reentry_without_Move_or_focus_loss()
+    {
+        var input = Focused();
+        input.SynchronizePosition(new(130f, 120f));
+        var saved = input.Snapshot(800, 600);
+        Assert.IsTrue(saved.IsInsideClient);
+        input.SynchronizePosition(new(1100f, 900f));
+        var outside = input.Snapshot(800, 600);
+        Assert.AreEqual(new Vector2(1100f, 900f), outside.Position);
+        Assert.IsFalse(outside.IsInsideClient);
+        Assert.AreEqual(Vector2.Zero, outside.Delta); // опрос не создаёт второй mouse delta
+        input.SynchronizePosition(new(130f, 120f));
+        Assert.IsTrue(input.Snapshot(800, 600).IsInsideClient);
+        Assert.IsTrue(saved.IsInsideClient);
+        Assert.AreEqual(new Vector2(130f, 120f), saved.Position);
+    }
+
     private static PointerInput Focused()
     {
         var input = new PointerInput();

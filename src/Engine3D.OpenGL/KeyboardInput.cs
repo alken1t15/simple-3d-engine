@@ -13,6 +13,8 @@ internal sealed class KeyboardInput
 
     internal InputSnapshot WithPointer(PointerSnapshot pointer) => new(_focused, _down, _pressed, _released, pointer);
 
+    internal bool NeedsRearm => _focused && _blocked != 0;
+
     internal void BeginFrame() => _pressed = _released = 0;
 
     internal void SetFocus(bool focused)
@@ -26,6 +28,8 @@ internal sealed class KeyboardInput
         _blocked = focused ? InputSnapshot.AllKeys : 0;
     }
 
+    // held должен отражать физическое удержание: событийный кэш после focus loss очищен,
+    // хотя пользователь ещё может держать клавишу. Ноль в таком кэше не означает отпускание.
     internal void ReconcileHeld(uint held) => _blocked &= held;
 
     internal void KeyDown(InputKey key, bool isRepeat)

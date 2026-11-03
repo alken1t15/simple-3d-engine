@@ -6,6 +6,7 @@
 """
 
 import ctypes as c
+import argparse
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ import time
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scenario", choices=["all", "pointer-exit", "focus-rearm"], default="all",
+                        help="Регрессии ревью; базовые сценарии выполняются всегда.")
+    scenario = parser.parse_args().scenario
     if not sys.platform.startswith("linux") or not os.environ.get("DISPLAY"):
         raise RuntimeError("Нужны Linux и X11 DISPLAY (например, xvfb-run).")
     x = c.CDLL("libX11.so.6")
@@ -194,14 +199,18 @@ def main():
             until(lambda f: name in f.get("released", []) and name not in f.get("keys", []), name + " up")
         print("PASS: клавиши, оба Shift, фронты и удержания")
 
-        def move_to(px, py):
+        def move_to(px, py, expected_delta=None):
             x.XWarpPointer(display, 0, native, 0, 0, 0, 0, px, py)
             x.XFlush(display)
-            return until(lambda f: abs(f.get("x", -1) - px) < 1 and abs(f.get("y", -1) - py) < 1, "pointer position")
+            # Опрос backend уже может видеть позицию до следующего CursorPosCallback.
+            # Проверка delta должна дождаться самого события, а не первого совпадения Position.
+            return until(lambda f: abs(f.get("x", -1) - px) < 1 and abs(f.get("y", -1) - py) < 1
+                         and (expected_delta is None or (abs(f.get("dx", 0) - expected_delta[0]) < 1
+                              and abs(f.get("dy", 0) - expected_delta[1]) < 1)), "pointer position/delta")
 
         move_to(100, 100)  # первый delta после focus подавлен
         collect()
-        movement = move_to(130, 120)
+        movement = move_to(130, 120, expected_delta=(30, 20))
         assert abs(movement["dx"] - 30) < 1 and abs(movement["dy"] - 20) < 1, movement
         assert all(f["dx"] == 0 and f["dy"] == 0 for f in collect()), "повтор mouse delta"
         for number, name in [(1, "Left"), (3, "Right"), (2, "Middle")]:
@@ -210,6 +219,25 @@ def main():
             button(number, False)
             until(lambda f: name in f.get("mouseReleased", []) and name not in f.get("buttons", []), name + " up")
         print("PASS: client position, delta один раз, три кнопки мыши")
+
+        if scenario in ("all", "pointer-exit"):
+            move_to(130, 120)
+            collect()
+            x.XWarpPointer(display, 0, native, 0, 0, 0, 0, 1100, 900)
+            x.XSync(display, False)
+            actual_x, actual_y, unused_x, unused_y = c.c_int(), c.c_int(), c.c_int(), c.c_int()
+            root_return, child_return, buttons_return = window(), window(), c.c_uint()
+            assert x.XQueryPointer(display, native, c.byref(root_return), c.byref(child_return),
+                                   c.byref(unused_x), c.byref(unused_y), c.byref(actual_x), c.byref(actual_y), c.byref(buttons_return))
+            assert actual_x.value >= 800 or actual_y.value >= 600, "Для выхода указателя нужен дисплей больше окна."
+            outside = until(lambda f: f.get("focused") is True and not f.get("inside", True)
+                            and abs(f.get("x", -1) - actual_x.value) < 1 and abs(f.get("y", -1) - actual_y.value) < 1,
+                            f"pointer outside without focus loss: XQueryPointer=({actual_x.value},{actual_y.value})")
+            assert not outside["mousePressed"], outside
+            assert all(f["focused"] and not f["inside"] for f in collect()), "Курсор снаружи снова стал inside."
+            entered = move_to(130, 120)
+            assert entered["focused"] and entered["inside"], entered
+            print("PASS: выход/повторный вход указателя без потери keyboard focus")
 
         key("Return", True)
         until(lambda f: f.get("mode") == "Captured" and "Enter" in f.get("pressed", []), "capture")
@@ -221,6 +249,21 @@ def main():
         xt.XTestFakeRelativeMotionEvent(display, 18, 9, 0)
         x.XFlush(display)
         until(lambda f: f.get("dx", 0) > 0 and f.get("dy", 0) > 0, "captured movement")
+        if scenario in ("all", "pointer-exit"):
+            # Один большой XTest шаг обрезается краем физического экрана. Малые шаги
+            # между updates дают GLFW перецентровать курсор и накапливают virtual position.
+            virtual = None
+            for _ in range(16):
+                xt.XTestFakeRelativeMotionEvent(display, 100, 80, 0)
+                x.XFlush(display)
+                samples = collect(0.06)
+                virtual = next((f for f in samples if f["mode"] == "Captured" and
+                                (f["x"] >= f["width"] or f["y"] >= f["height"])), None)
+                if virtual:
+                    break
+            assert virtual, f"Captured потерял virtual position: {samples[-1] if samples else 'нет кадров'}"
+            assert not virtual["inside"], virtual
+            print("PASS: Captured сохраняет неограниченную виртуальную позицию")
         key("Escape", True)
         until(lambda f: f.get("mode") == "Normal" and "Escape" in f.get("pressed", []), "release")
         key("Escape", False)
@@ -244,7 +287,10 @@ def main():
         assert not lost["released"] and not lost["mouseReleased"], lost
         focus(native)
         until(lambda f: f.get("focused") is True, "focus gain")
-        assert all(f["mode"] == "Normal" and "W" not in f["keys"] and not f["buttons"] for f in collect()), "автоматический capture/залипание"
+        frames = collect(1.2 if scenario in ("all", "focus-rearm") else 0.08)
+        invalid = [f for f in frames if f["mode"] != "Normal" or "W" in f["keys"]
+                   or "W" in f["pressed"] or f["buttons"]]
+        assert not invalid, f"Автоповтор после focus gain без нового нажатия: {invalid[0] if invalid else ''}"
         key("w", False)
         button(1, False)
         collect()
@@ -254,6 +300,30 @@ def main():
         key("w", False)
         button(1, False)
         print("PASS: capture/release, focus loss/gain, release/new press")
+
+        if scenario in ("all", "focus-rearm"):
+            collect()
+            key("a", True)
+            until(lambda f: "A" in f.get("keys", []), "old key before focus loss")
+            focus(focus_sink)
+            until(lambda f: f.get("focused") is False, "focus loss for release outside")
+            key("a", False)  # отпускание не доставляется окну Engine
+            key("w", True)   # новое физическое удержание началось в другом окне
+            collect()
+            focus(native)
+            until(lambda f: f.get("focused") is True, "focus gain with different physical keys")
+            frames = collect(1.2)
+            invalid = [f for f in frames if "W" in f["keys"] or "W" in f["pressed"] or "A" in f["keys"]]
+            assert not invalid, f"Некорректный rearm после изменения удержаний снаружи: {invalid[0] if invalid else ''}"
+            key("a", True)
+            until(lambda f: "A" in f.get("pressed", []), "released outside key accepts first new press")
+            key("a", False)
+            key("w", False)
+            until(lambda f: not f.get("keys", []), "release physically held outside key")
+            key("w", True)
+            until(lambda f: "W" in f.get("pressed", []), "fresh press for key held outside")
+            key("w", False)
+            print("PASS: отпускание вне окна и удержание, начатое без фокуса")
 
         x.XResizeWindow(display, native, 640, 480)
         x.XFlush(display)

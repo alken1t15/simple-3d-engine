@@ -360,12 +360,12 @@ public sealed class Engine : IDisposable
             if (_closeRequested || _window.IsExiting)
                 break;
 
-            _input.ReconcileHeld(ReadHeldKeys());
+            if (_input.NeedsRearm) _input.ReconcileHeld(ReadHeldKeys());
             _pointer.ReconcileHeld(ReadHeldButtons());
-            var mousePosition = _window.MousePosition;
-            _pointer.SynchronizePosition(new NumericsVector2(mousePosition.X, mousePosition.Y));
+            _pointer.SynchronizePosition(ReadPointerPosition());
             var clientSize = _window.ClientSize;
             _snapshot = _input.WithPointer(_pointer.Snapshot(clientSize.X, clientSize.Y));
+            ThrowIfGlfwError("reading input state");
 
             double now = clock.Elapsed.TotalSeconds;
             float deltaSeconds = previousUpdate is { } previous ? (float)(now - previous) : 0f;
@@ -462,6 +462,14 @@ public sealed class Engine : IDisposable
     private void OnMouseMove(MouseMoveEventArgs args) => _pointer.Move(
         new NumericsVector2(args.Position.X, args.Position.Y), new NumericsVector2(args.Delta.X, args.Delta.Y));
 
+    private unsafe NumericsVector2 ReadPointerPosition()
+    {
+        // NativeWindow.MousePosition — событийный кэш: после CursorLeave он может остаться внутри.
+        // GLFW запрашивает backend в Normal и возвращает виртуальную позицию в Captured.
+        GLFW.GetCursorPos(_window.WindowPtr, out double x, out double y);
+        return new NumericsVector2((float)x, (float)y);
+    }
+
     private void OnMouseDown(MouseButtonEventArgs args)
     {
         if (MapButton(args.Button) is { } button) _pointer.ButtonDown(button);
@@ -496,6 +504,9 @@ public sealed class Engine : IDisposable
 
     private uint ReadHeldKeys()
     {
+        // X11 очищает GLFW/OpenTK cache при focus loss. Его первый autorepeat после
+        // focus gain выглядит как новый press, поэтому rearm использует XQueryKeymap.
+        if (X11KeyboardState.TryReadHeldKeys(s_keys, out uint physical)) return physical;
         uint result = 0;
         foreach (var (native, key) in s_keys)
         {

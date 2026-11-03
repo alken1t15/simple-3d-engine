@@ -7,6 +7,30 @@ namespace Engine3D.Tests;
 public sealed class KeyboardInputTests
 {
     [TestMethod]
+    public void Physical_held_key_stays_blocked_even_if_native_repeat_is_reported_as_new_press()
+    {
+        var input = Focused();
+        input.KeyDown(InputKey.W, false);
+        input.SetFocus(false);
+        input.SetFocus(true);
+        for (int frame = 0; frame < 120; frame++)
+        {
+            input.BeginFrame();
+            input.ReconcileHeld(InputSnapshot.Mask(InputKey.W));
+            Assert.IsTrue(input.NeedsRearm);
+            input.KeyDown(InputKey.W, false); // GLFW cache после focus loss не помнит старый press
+            Assert.IsFalse(input.Snapshot.IsDown(InputKey.W));
+            Assert.IsFalse(input.Snapshot.WasPressed(InputKey.W));
+        }
+        input.KeyUp(InputKey.W);
+        input.ReconcileHeld(0);
+        Assert.IsFalse(input.NeedsRearm);
+        Assert.IsFalse(input.Snapshot.WasReleased(InputKey.W));
+        input.KeyDown(InputKey.W, false);
+        Assert.IsTrue(input.Snapshot.WasPressed(InputKey.W));
+    }
+
+    [TestMethod]
     public void Existing_numeric_values_are_preserved_and_new_keys_have_distinct_bits()
     {
         InputKey[] original = [InputKey.A, InputKey.D, InputKey.Left, InputKey.Right, InputKey.Space, InputKey.R, InputKey.Escape];
