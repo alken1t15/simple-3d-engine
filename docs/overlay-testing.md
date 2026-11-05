@@ -165,3 +165,31 @@ HiDPI/Wayland-native, ручная читаемость и FPS не выводя
 ![Overlay поверх текстурированной 3D-сцены](overlay/overlay-sample-linux.png)
 
 ![Resize 640×480 с clipping](overlay/overlay-resize-linux.png)
+
+## Совместная приёмка input/overlay — 05.11.2026
+
+Проверен commit `25a0e1cdb48a4383d469aaf3ab69c95bba2cdd22`,
+ветка `feature/overlay-17`, Linux Mint 22.1 / Cinnamon / X11, .NET SDK 10.0.114.
+Приведённый выше ранний прогон выполнен до этого commit;
+ниже — результаты повторной проверки собранной версии и подтверждение пользователя.
+
+- Solution и оба sample — Release build PASS, 0 warnings/errors.
+- Совместные input/overlay/lifecycle tests — **44/44 PASS**, без пропусков,
+  включая оба значения scale=1/2 в `Logical_coordinates_scale_once_to_physical_framebuffer`.
+- Нативный overlay-прогон с `--no-vsync` — PASS: pixel marker по logical pointer,
+  Normal cursor, null/return, clipping/resize, Expose/Refresh без лишнего update,
+  minimize/restore через Cinnamon и clean exit.
+- Дополнительный локальный X11-драйвер проверил центр и четыре угла при 960×640
+  и повторно при 640×480. Pixel readback дожидается отображённого marker,
+  а не полагается на фиксированную задержку между warp и чтением пикселя.
+- Native input/cursor regression на этом commit — PASS; OverlaySample smoke
+  с `--no-vsync` — 3 кадра, штатный выход, CursorMode.Normal.
+- Пользователь подтвердил **весь** запрошенный ручной сценарий OverlaySample
+  с `--no-vsync`: физическая мышь в центре и у краёв, resize, Space off/on,
+  Alt-Tab туда/обратно. Маркер совпадает с указателем, слой сохраняется, курсор свободен.
+- Native framebuffer≠client HiDPI — SKIP по ограничению X11, описанному выше;
+  GPU scale=2 не обозначается как проверка физического HiDPI-стенда.
+
+Связанный протокол и границы приёмки #16 — [input-testing.md](input-testing.md).
+Commit/PR этого отчёта, upstream merge и game gitlink данным прогоном не выполняются;
+результат проверки не заменяет эти этапы передачи #17.

@@ -92,3 +92,36 @@ commit, наблюдаемый результат и PASS/FAIL/SKIP:
 
 Автоматический focus switch не равен ручному Alt-Tab через конкретный WM. Smoke и CPU-тесты
 не подтверждают реальный HiDPI, работу физической мыши, внешний вид на всех GPU или FPS.
+
+## Совместная проверка с overlay #17 — 05.11.2026
+
+Проверен commit `25a0e1cdb48a4383d469aaf3ab69c95bba2cdd22` ветки
+`feature/overlay-17` поверх принятого input commit `b20e9ed`.
+Окружение: Linux Mint 22.1 / Cinnamon / X11, .NET SDK 10.0.114, Release;
+настоящий рабочий стол, без Xvfb. См. также [протокол overlay](overlay-testing.md).
+
+- Сборка solution, InputSample и OverlaySample — PASS, без ошибок/предупреждений.
+- Совместный набор: 20 CPU input cases, 12 CPU overlay cases, 9 graphics overlay cases
+  и 3 input/cursor lifecycle cases — **44 PASS, 0 FAIL, 0 SKIP**.
+- Полный native `check_input_x11.py` на версии с overlay — PASS:
+  клавиши/оба Shift/фронты, pointer/buttons/delta, exit/reentry,
+  Captured virtual position, focus loss/gain, autorepeat/rearm,
+  отпускание вне окна и новое удержание без фокуса, resize, завершение.
+- Дополнительная проверка OverlaySample через X11 front-buffer readback — PASS:
+  маркер совпадает с pointer в центре и четырёх углах при client/framebuffer
+  960×640 и после resize до 640×480. Курсор остаётся Normal.
+- Пользователь явно подтвердил ручную проверку физической мышью в OverlaySample
+  с `--no-vsync`: центр/края, resize, Space (убрать/вернуть слой), Alt-Tab туда и обратно —
+  всё работает, маркер совпадает с указателем, слой сохраняется, курсор свободен.
+  Это подтверждение пользователя; автоматические результаты перечислены отдельно.
+- HiDPI: GPU-проверка logical→physical при scale=1 и scale=2 — PASS.
+  Реальный native HiDPI с framebuffer≠client — **SKIP: текущий backend X11**.
+  GLFW на X11 сохраняет соответствие размеров 1:1; смена desktop scale не создаёт
+  такой сценарий. Это не PASS для другого backend, переноса между DPI-мониторами
+  или физического HiDPI-стенда. Обоснование —
+  [GLFW_SCALE_FRAMEBUFFER](https://www.glfw.org/docs/3.4/window_guide.html#window_hints_wnd).
+
+Повторная реализация input не требуется. Совместная проверка использует локальный
+overlay commit, не принятый game gitlink. Полное закрытие игровой #16 учитывает
+явное ограничение HiDPI; его приёмка или перенос остаются решением Team Lead.
+Публикация/принятие #17 и game gitlink выполняются отдельно по engine-first.
