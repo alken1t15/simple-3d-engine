@@ -17,4 +17,10 @@
     <ProjectReference Include="../Engine3D.Core/Engine3D.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/ascii-atlas.png" />
+    <EmbeddedResource Include="Assets/ascii-atlas.json" />
+    <None Update="Assets/FONT-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

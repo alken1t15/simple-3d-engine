@@ -1,0 +1,12 @@
+{
+  "cellWidth": 35,
+  "cellHeight": 63,
+  "columns": 16,
+  "first": 32,
+  "last": 126,
+  "advance": 28.90625,
+  "font": "DejaVu Sans Mono",
+  "fontPixelSize": 48,
+  "fontSha256": "c805f9436dbc268644c1d9584f01a601a653e028e08fd74b9b949f6cf8304d88",
+  "pillow": "10.2.0"
+}

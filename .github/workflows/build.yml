@@ -98,6 +98,20 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet run --project samples/InputSample -c Release --no-build -- --smoke
       - name: Test native X11 input and cursor through public API
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' python scripts/check_input_x11.py
+      - name: Build and smoke public overlay sample
+        run: |
+          dotnet build samples/OverlaySample -c Release
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet run --project samples/OverlaySample -c Release --no-build -- --smoke
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' dotnet run --project samples/OverlaySample -c Release --no-build -- --smoke --no-vsync
+      - name: Test native X11 overlay resize and refresh
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' python scripts/check_overlay_x11.py --output-dir artifacts/overlay-tests
+      - name: Upload overlay screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: overlay-screenshots
+          path: artifacts/overlay-tests/*.png
+          if-no-files-found: warn
       - name: Upload graphics test results
         if: always()
         uses: actions/upload-artifact@v7

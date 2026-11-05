@@ -33,6 +33,8 @@ public sealed class Engine : IDisposable
 
     private readonly NativeWindow _window;
     private readonly SceneRenderer _renderer;
+    private OverlayRenderer? _overlayRenderer;
+    private OverlayFrame? _overlay;
     private readonly FramePreparation _frame = new();
     private readonly KeyboardInput _input = new();
     private readonly PointerInput _pointer = new();
@@ -160,6 +162,23 @@ public sealed class Engine : IDisposable
 
     /// <summary>Число GPU-текстур: одна общая TextureData загружается только один раз.</summary>
     internal int GpuTextureCount => _renderer.TextureCount;
+
+    internal OverlayRenderer? OverlayRenderer => _overlayRenderer;
+
+    /// <summary>
+    /// Задаёт immutable overlay в логических пикселях client area; null очищает слой.
+    /// Разрешён до Run и внутри onUpdate на потоке Create. GPU-upload выполняется лениво при рендере.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Engine освобождён.</exception>
+    /// <exception cref="InvalidOperationException">Неверный поток или вызов вне разрешённого lifecycle.</exception>
+    public void SetOverlay(OverlayFrame? frame)
+    {
+        ThrowIfDisposed();
+        ThrowIfWrongThread();
+        if (_state != State.Created && !(_state == State.Running && _inUpdate))
+            throw new InvalidOperationException("SetOverlay is valid only before Run or inside onUpdate.");
+        _overlay = frame;
+    }
 
     /// <summary>Декодирует PNG в неизменяемую CPU TextureData. GPU-upload выполняется лениво при показе.</summary>
     /// <exception cref="ObjectDisposedException">Engine уже освобожден.</exception>
@@ -318,6 +337,8 @@ public sealed class Engine : IDisposable
 
         // GPU-ресурсы удаляются, пока контекст окна еще жив; затем уничтожаются окно и контекст.
         var errors = new List<Exception>();
+        _overlayRenderer?.Release(errors);
+        _overlay = null;
         _renderer.Release(errors);
         try
         {
@@ -396,12 +417,18 @@ public sealed class Engine : IDisposable
         // Размер в пикселях кадрового буфера, а не логический размер окна: на HiDPI они различаются.
         // У свернутого окна буфер нулевой — кадр не рисуется и не считается.
         var size = _window.FramebufferSize;
-        if (size.X <= 0 || size.Y <= 0)
+        var client = _window.ClientSize;
+        if (IsMinimized() || size.X <= 0 || size.Y <= 0 || client.X <= 0 || client.Y <= 0)
             return;
 
         // Сначала CPU: проверка состояния после onUpdate и матрицы — до любых GL-вызовов кадра.
         _frame.Prepare(_scene!, _camera!, size.X, size.Y);
         _renderer.Render(_scene!, _frame, size.X, size.Y);
+        if (_overlay is { } overlay)
+        {
+            _overlayRenderer ??= new OverlayRenderer();
+            _overlayRenderer.Render(overlay, client.X, client.Y, size.X, size.Y);
+        }
         if (FrameRendered is { } frameRendered)
             frameRendered(size.X, size.Y, ReadFramebuffer(size.X, size.Y));
         GlErrors.ThrowIfAny($"rendering frame {RenderedFrames + 1}");
@@ -429,6 +456,10 @@ public sealed class Engine : IDisposable
             _window.Close();
         }
     }
+
+    // На X11 минимизация не обязана обнулять framebuffer. Проверяем iconified state
+    // существующего окна через GLFW; второй контекст/публичный native handle не нужен.
+    private unsafe bool IsMinimized() => GLFW.GetWindowAttrib(_window.WindowPtr, WindowAttributeGetBool.Iconified);
 
     private void OnKeyDown(KeyboardKeyEventArgs args)
     {
