@@ -279,6 +279,27 @@ WASD/стрелки двигают куб, Shift ускоряет, мышь вр
 [Контракт, пример и проверки](docs/keyboard-input.md).
 [Linux-прогон и чек-лист](docs/input-testing.md).
 
+## Overlay для приложений
+
+`engine.SetOverlay(frame)` показывает панели, изображения и ASCII-текст после 3D в том же окне.
+Данные immutable, координаты — logical client pixels от левого верхнего угла, Y вниз.
+Встроенный лицензированный atlas не требует шрифта ОС; неизвестный символ → `?`.
+`SetOverlay(null)` очищает слой. Вызовы — до Run или в onUpdate на потоке Create.
+Экраны, раскладка и hit-test остаются у приложения.
+
+```sh
+dotnet build samples/OverlaySample -c Release
+dotnet run --project samples/OverlaySample -c Release --no-build
+dotnet run --project samples/OverlaySample -c Release --no-build -- --smoke
+dotnet run --project samples/OverlaySample -c Release --no-build -- --no-vsync
+```
+
+Space включает/очищает overlay, R сбрасывает вращение, Escape закрывает окно.
+Маркер проверяет logical pointer; курсор остаётся Normal. Smoke показывает три кадра.
+Если маркер заметно отстаёт при движении, `--no-vsync` позволяет сравнить задержку показа
+без ожидания vertical refresh. Это диагностическая опция sample; настройки Engine по умолчанию сохранены.
+[Контракт и использование](docs/overlay.md), [CPU/GPU/Linux-проверки](docs/overlay-testing.md).
+
 ## Звук для приложений
 
 Реализован отдельный `Engine3D.Audio`: PCM WAV16 mono/stereo 8–48 kHz,

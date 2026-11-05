@@ -34,6 +34,18 @@
 Игровые WAV, event mapping, реакция на фокус и AudioCoordinator остаются у клиента.
 Spatial audio, streaming и автоматическое переподключение устройства в этот объём не входят.
 
+### Расширение для игрового клиента: overlay
+
+[Задача игры #17](https://github.com/alken1t15/simple-platformer/issues/17) и
+[принятый App/engine v1](https://github.com/alken1t15/simple-platformer/blob/main/docs/app-engine-contract-v1.md#overlay)
+задают универсальные immutable данные panels/images/texts и SetOverlay(null для очистки).
+Один ASCII atlas, logical screen coordinates, проход после 3D с восстановлением GL state,
+clipping, resize/HiDPI и cleanup — [контракт overlay](overlay.md).
+Новых runtime-пакетов и сборок нет. Шрифт поставляется с лицензией.
+Игровые экраны/HUD/переходы и hit-test остаются в #19 игры; UI framework/редактор/HTML не входят.
+Проверки — CPU, pixel/lifecycle, публичный sample и отдельные Linux/HiDPI сценарии.
+Полная передача игре требует upstream review/merge и отдельного принятого game gitlink.
+
 ## 2. Выбранный P0 — ядро проекта
 
 | ID | Функция / результат | Конкретный критерий готовности | Трудоемкость/зависимость |

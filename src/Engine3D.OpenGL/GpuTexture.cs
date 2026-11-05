@@ -9,7 +9,7 @@ internal sealed class GpuTexture : IDisposable
     internal int Handle { get; }
     private bool _disposed;
 
-    public GpuTexture(TextureData texture)
+    public GpuTexture(TextureData texture, bool useMipmaps = true)
     {
         GL.GetInteger(GetPName.MaxTextureSize, out int maxSize);
         if (texture.Width > maxSize || texture.Height > maxSize)
@@ -22,11 +22,12 @@ internal sealed class GpuTexture : IDisposable
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, texture.Width, texture.Height, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, BottomUpPixels(texture));
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter,
+                (int)(useMipmaps ? TextureMinFilter.LinearMipmapLinear : TextureMinFilter.Linear));
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            if (useMipmaps) GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             GlErrors.ThrowIfAny("uploading a texture to the GPU");
         }
         catch

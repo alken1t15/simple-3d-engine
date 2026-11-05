@@ -441,3 +441,16 @@ OpenTK/AL handles. Поддержан PCM WAV16 mono/stereo 8–48 kHz и silent
 
 [Авторские CPU/native-проверки и ручной Linux-протокол](audio-testing.md),
 [пример клиента публичного API](../samples/AudioSample/Program.cs).
+
+## 12. Экранный overlay
+
+`Engine3D.Core` предоставляет immutable `UiRect`, `OverlayPanel`, `OverlayImage`,
+`OverlayText` и `OverlayFrame` с копированием коллекций. `Engine.SetOverlay(frame)`
+разрешён до Run и внутри onUpdate на owner thread; null очищает отображение.
+Панели/картинки/ASCII-текст рисуются после 3D в том же окне, в logical client pixels
+с началом слева сверху и Y вниз. Порядок — panels → images → texts; неизвестный символ → `?`.
+Renderer восстанавливает изменённые GL-состояния и учитывает logical/framebuffer размеры
+при resize/HiDPI. Engine освобождает GPU-ресурсы до контекста.
+
+[Сигнатуры, ошибки, метрики текста, alpha и lifecycle](overlay.md),
+[проверки](overlay-testing.md), [публичный sample](../samples/OverlaySample/Program.cs).

@@ -45,6 +45,12 @@ flowchart LR
 
 ## 2. Модель данных
 
+Расширение [overlay](overlay.md) добавляет в Core immutable UiRect/Panel/Image/Text/Frame,
+а в OpenGL — отдельный внутренний экранный renderer и Engine.SetOverlay.
+Он вызывается общим DrawFrame после 3D и до readback/SwapBuffers, в том числе из Refresh.
+Экранные logical coordinates Y-down не меняют мировые Y-up и 3D-матрицы.
+GPU-ресурсами overlay владеет Engine; модели меню и hit-test принадлежат клиенту.
+
 | Тип | Содержит | Связь и владение |
 |---|---|---|
 | `Vertex` | Позиция `Vector3`, UV `Vector2`, локальная нормаль `Vector3` | Неизменяемое значение; MeshData валидирует и нормализует нормаль. |
