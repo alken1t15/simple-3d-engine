@@ -70,7 +70,7 @@ try
         updates++;
         if (trace)
         {
-            var bounds = engine.WindowBounds;
+            var bounds = engine.ClientSize;
             var framebuffer = engine.FramebufferSize;
             Console.WriteLine(JsonSerializer.Serialize(new
             {
@@ -88,7 +88,7 @@ try
         }
         else if (focused != input.IsFocused || modeChanged || timer.Elapsed.TotalSeconds >= nextReport)
         {
-            Console.WriteLine($"focus={input.IsFocused} mode={engine.CursorMode} pointer={input.Pointer.Position} delta={input.Pointer.Delta} inside={input.Pointer.IsInsideClient} client={engine.WindowBounds.Width}x{engine.WindowBounds.Height} framebuffer={engine.FramebufferSize}");
+            Console.WriteLine($"focus={input.IsFocused} mode={engine.CursorMode} pointer={input.Pointer.Position} delta={input.Pointer.Delta} inside={input.Pointer.IsInsideClient} client={engine.ClientSize.Width}x{engine.ClientSize.Height} framebuffer={engine.FramebufferSize}");
             nextReport = timer.Elapsed.TotalSeconds + 0.5d;
         }
         focused = input.IsFocused;

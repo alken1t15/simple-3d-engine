@@ -239,7 +239,7 @@ public sealed class OverlayRenderingTests
 
     private static Rgb At(Frame frame, Engine engine, int x, int y)
     {
-        var logical = engine.WindowBounds;
+        var logical = engine.ClientSize;
         return frame.At((int)((x + 0.5) / logical.Width * frame.Width),
             frame.Height - 1 - (int)((y + 0.5) / logical.Height * frame.Height));
     }

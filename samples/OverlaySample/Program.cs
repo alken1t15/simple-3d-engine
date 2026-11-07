@@ -49,7 +49,7 @@ try
     double nextTrace = 0;
     OverlayFrame Build(Vector2 pointer, bool inside)
     {
-        var client = engine.WindowBounds;
+        var client = engine.ClientSize;
         var framebuffer = engine.FramebufferSize;
         float card = Math.Clamp(client.Width * 0.36f, 260f, 350f);
         List<OverlayPanel> panels = [
@@ -101,7 +101,7 @@ try
         if (trace && timer.Elapsed.TotalSeconds >= nextTrace)
         {
             nextTrace = timer.Elapsed.TotalSeconds + 0.02;
-            var client = engine.WindowBounds;
+            var client = engine.ClientSize;
             var fb = engine.FramebufferSize;
             Console.WriteLine(JsonSerializer.Serialize(new { kind = "frame", frame = updates, rendered = engine.RenderedFrames,
                 focused = input.IsFocused, visible, mode = engine.CursorMode.ToString(),
