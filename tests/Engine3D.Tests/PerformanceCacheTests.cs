@@ -27,6 +27,10 @@ public sealed class PerformanceCacheTests
             Assert.AreEqual(0, engine.GpuMeshCount);
             Assert.AreEqual(0, engine.GpuTextureCount);
             Assert.IsTrue(engine.FramebufferSize.Width > 0 && engine.FramebufferSize.Height > 0);
+            Assert.IsTrue(engine.ClientSize.Width > 0 && engine.ClientSize.Height > 0);
+            Exception? wrongClientThread = null;
+            Task.Run(() => { try { _ = engine.ClientSize; } catch (Exception exception) { wrongClientThread = exception; } }).GetAwaiter().GetResult();
+            Assert.IsInstanceOfType<InvalidOperationException>(wrongClientThread);
             Exception? wrongThread = null;
             Task.Run(() => { try { _ = engine.FramebufferSize; } catch (Exception exception) { wrongThread = exception; } }).GetAwaiter().GetResult();
             Assert.IsInstanceOfType<InvalidOperationException>(wrongThread);
@@ -49,6 +53,7 @@ public sealed class PerformanceCacheTests
         Assert.AreEqual(0, engine.GpuMeshCount);
         Assert.AreEqual(0, engine.GpuTextureCount);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = engine.FramebufferSize);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = engine.ClientSize);
         Console.WriteLine("After Dispose: GPU meshes=0, textures=0");
     }
 }

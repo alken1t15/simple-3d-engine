@@ -132,6 +132,7 @@ public sealed class Engine : IDisposable
     public CursorMode CursorMode { get; set; }
     public (int Width, int Height) FramebufferSize { get; }
     public (int X, int Y, int Width, int Height) WindowBounds { get; }
+    public (int Width, int Height) ClientSize { get; }
     public void Run(Scene scene, Camera camera, Action<float>? onUpdate = null);
     public void RequestClose();
     public void Dispose();
@@ -454,3 +455,11 @@ Renderer восстанавливает изменённые GL-состояни
 
 [Сигнатуры, ошибки, метрики текста, alpha и lifecycle](overlay.md),
 [проверки](overlay-testing.md), [публичный sample](../samples/OverlaySample/Program.cs).
+
+
+### Размер client area без положения окна
+
+Engine.ClientSize возвращает Width/Height в логических пикселях на потоке Create до Dispose.
+Используется для layout/hit-test и работает на Wayland без запроса глобальной позиции окна.
+WindowBounds сохраняет прежнее поведение; его X/Y недоступны на Wayland.
+FramebufferSize — физические пиксели; при scale=2 они вдвое больше ClientSize.

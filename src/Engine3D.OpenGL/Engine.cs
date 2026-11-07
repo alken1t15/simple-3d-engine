@@ -139,11 +139,24 @@ public sealed class Engine : IDisposable
         }
     }
 
+    /// <summary>Размер клиентской области в логических пикселях без запроса положения окна.
+    /// Доступен также на Wayland. Только поток Create, до Dispose.</summary>
+    public (int Width, int Height) ClientSize
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            var size = _window.ClientSize;
+            return (size.X, size.Y);
+        }
+    }
+
     /// <summary>
     /// Текущее положение левого верхнего угла окна вместе с рамкой и размер клиентской области в тех же единицах,
     /// что <see cref="EngineOptions.Position"/>, <see cref="EngineOptions.Width"/> и <see cref="EngineOptions.Height"/>.
     /// Читается с потока Create, например из onUpdate: приложение может запомнить положение, заданное пользователем
-    /// перетаскиванием или ресайзом.
+    /// перетаскиванием или ресайзом. Положение недоступно на Wayland; для layout используйте ClientSize.
     /// </summary>
     public (int X, int Y, int Width, int Height) WindowBounds
     {
