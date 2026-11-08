@@ -463,3 +463,22 @@ Engine.ClientSize возвращает Width/Height в логических пи
 Используется для layout/hit-test и работает на Wayland без запроса глобальной позиции окна.
 WindowBounds сохраняет прежнее поведение; его X/Y недоступны на Wayland.
 FramebufferSize — физические пиксели; при scale=2 они вдвое больше ClientSize.
+
+### Ограничения и изменение размера окна
+
+`Engine.ClientSizeLimits` возвращает эффективные MinimumWidth/MinimumHeight/MaximumWidth/MaximumHeight
+в логических пикселях на потоке Create до Dispose. Неограниченный максимум равен int.MaxValue.
+`EngineOptions.MinimumClientSize` (nullable пара положительных int) задаёт минимум;
+`LimitToMonitorWorkArea` (по умолчанию false) ограничивает максимум рабочей областью с вычетом рамки.
+Если экран меньше минимума, минимум уменьшается до доступной области. Без этих опций прежние размеры разрешены.
+Ограничения обновляются перед onUpdate; GLFW hints ограничивают обычный resize,
+а проверка после событий исправляет размеры, установленные WM в обход hints.
+Свёрнутое окно не восстанавливается; maximize остаётся под управлением ОС.
+
+`SetClientSize(int width, int height)` принимает только положительные значения, ограничивает запрос
+текущими границами и возвращает окно в Normal. Разрешён до Run или внутри onUpdate на потоке Create;
+иначе InvalidOperationException, после Dispose — ObjectDisposedException.
+Размер ОС может применяться асинхронно: фактический результат читается через ClientSize в следующих кадрах.
+На Wayland GLFW 3.4 не сообщает монитор окна и рабочую область без панелей: используется
+наименьшая логическая область всех мониторов (physical video mode / content scale), без запроса Location.
+Это консервативное ограничение размера, а не гарантия размещения относительно панелей compositor.
