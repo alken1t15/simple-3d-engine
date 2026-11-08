@@ -284,6 +284,7 @@ public sealed class Engine : IDisposable
             window = new NativeWindow(new NativeWindowSettings
             {
                 ClientSize = new Vector2i(options.Width, options.Height),
+                WindowBorder = options.Resizable ? WindowBorder.Resizable : WindowBorder.Fixed,
                 Location = options.Position is { } position ? new Vector2i(position.X, position.Y) : null,
                 Title = options.Title,
                 API = ContextAPI.OpenGL,

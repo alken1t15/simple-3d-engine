@@ -12,6 +12,50 @@ namespace Engine3D.Tests;
 public sealed class WindowSizeWindowsTests
 {
     [TestMethod]
+    public void Fixed_window_has_no_resize_frame_or_resize_hit_targets_but_API_can_resize()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Inconclusive("Requires the Windows window manager.");
+        AllowTestRunnerThreads();
+        string title = $"Engine fixed frame regression {Guid.NewGuid()}";
+        using var engine = Engine.Create(new EngineOptions { Title = title, Width = 400, Height = 300,
+            Resizable = false, VSync = false });
+        var clock = Stopwatch.StartNew();
+        bool requested = false, verified = false;
+        engine.Run(new Scene(), new Camera(), _ =>
+        {
+            if (clock.Elapsed.TotalSeconds > 5) Assert.Fail("Fixed window resize timed out.");
+            if (clock.Elapsed.TotalSeconds < 0.15) return;
+            nint window = FindWindow(null, title);
+            Assert.AreNotEqual(nint.Zero, window);
+            Assert.AreEqual(0, GetWindowLong(window, -16) & 0x00040000, "WS_THICKFRAME permits edge resizing.");
+            Assert.IsTrue(GetWindowRect(window, out var rect));
+            foreach (var (x, y) in new[] {
+                (rect.Left + 1, rect.Top + 1), (rect.Right - 2, rect.Top + 1),
+                (rect.Left + 1, rect.Bottom - 2), (rect.Right - 2, rect.Bottom - 2),
+                ((rect.Left + rect.Right) / 2, rect.Top + 1), ((rect.Left + rect.Right) / 2, rect.Bottom - 2),
+                (rect.Left + 1, (rect.Top + rect.Bottom) / 2), (rect.Right - 2, (rect.Top + rect.Bottom) / 2) })
+            {
+                nint point = (nint)((y & 0xffff) << 16 | (x & 0xffff));
+                long target = SendMessage(window, 0x0084, 0, point).ToInt64(); // WM_NCHITTEST
+                Assert.IsFalse(target is >= 10 and <= 17, $"Edge/angle hit-test returned resize target {target}.");
+            }
+            if (!requested)
+            {
+                Assert.AreEqual((400, 300), engine.ClientSize);
+                engine.SetClientSize(500, 350);
+                requested = true;
+            }
+            else if (clock.Elapsed.TotalSeconds > 0.3)
+            {
+                Assert.AreEqual((500, 350), engine.ClientSize);
+                verified = true;
+                engine.RequestClose();
+            }
+        });
+        Assert.IsTrue(verified);
+    }
+
+    [TestMethod]
     public void Resize_restores_native_WM_maximized_and_minimized_states()
     {
         if (!OperatingSystem.IsWindows()) Assert.Inconclusive("Requires the Windows window manager.");
@@ -63,4 +107,12 @@ public sealed class WindowSizeWindowsTests
     private static extern bool IsIconic(nint window);
     [DllImport("user32.dll")]
     private static extern bool IsZoomed(nint window);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(nint window, int index);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(nint window, out Rect rect);
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern nint SendMessage(nint window, uint message, nint wParam, nint lParam);
 }

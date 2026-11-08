@@ -9,6 +9,9 @@ namespace Engine3D.Tests;
 public sealed class WindowSizeTests
 {
     [TestMethod]
+    public void Existing_clients_remain_resizable_by_default() => Assert.IsTrue(new EngineOptions().Resizable);
+
+    [TestMethod]
     public void Policy_clamps_both_axes_and_reduces_minimum_on_small_displays()
     {
         var normal = WindowSizePolicy.Calculate((800, 450), 1904, 1009);
