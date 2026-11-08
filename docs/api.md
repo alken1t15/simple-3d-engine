@@ -466,6 +466,11 @@ FramebufferSize — физические пиксели; при scale=2 они �
 
 ### Ограничения и изменение размера окна
 
+`EngineOptions.Resizable` по умолчанию true. При false используется обычное окно
+с фиксированной рамкой: перетаскивание краёв/углов не меняет размер; программный
+`SetClientSize` остаётся доступным. Это политика оконного менеджера, не запрет
+административных команд других процессов, принудительно меняющих размер окна.
+
 `Engine.ClientSizeLimits` возвращает эффективные MinimumWidth/MinimumHeight/MaximumWidth/MaximumHeight
 в логических пикселях на потоке Create до Dispose. Неограниченный максимум равен int.MaxValue.
 `EngineOptions.MinimumClientSize` (nullable пара положительных int) задаёт минимум;

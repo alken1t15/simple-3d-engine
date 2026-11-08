@@ -9,6 +9,10 @@ public sealed class EngineOptions
     /// <summary>Высота клиентской области окна в логических пикселях; должна быть положительной.</summary>
     public int Height { get; init; } = 720;
 
+    /// <summary>Разрешать изменение размера окна пользователем за края/углы.
+    /// false оставляет обычную рамку, но программный SetClientSize остаётся доступен.</summary>
+    public bool Resizable { get; init; } = true;
+
     /// <summary>Минимальный размер клиентской области; null — минимум не задан.
     /// Если рабочая область меньше, эффективный минимум уменьшается до доступного размера.</summary>
     public (int Width, int Height)? MinimumClientSize { get; init; }
