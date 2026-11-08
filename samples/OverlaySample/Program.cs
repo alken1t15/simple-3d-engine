@@ -25,6 +25,7 @@ try
 {
     using var engine = Engine.Create(new EngineOptions { Width = 960, Height = 640, Title = title, VSync = !noVsync });
     var texture = CreateImage();
+    engine.SetWindowIcon(texture);
     var scene = new Scene();
     scene.Lighting.AmbientColor = new Vector3(0.45f);
     scene.Lighting.Direction = new Vector3(-1, -2, -1);

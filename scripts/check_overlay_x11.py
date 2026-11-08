@@ -51,6 +51,8 @@ def main():
     bind(x, "XIconifyWindow", c.c_int, ptr, win, c.c_int)
     bind(x, "XDefaultScreen", c.c_int, ptr)
     bind(x, "XInternAtom", c.c_ulong, ptr, c.c_char_p, c.c_int)
+    bind(x, "XGetWindowProperty", c.c_int, ptr, win, c.c_ulong, c.c_long, c.c_long, c.c_int, c.c_ulong,
+         c.POINTER(c.c_ulong), c.POINTER(c.c_int), c.POINTER(c.c_ulong), c.POINTER(c.c_ulong), c.POINTER(ptr))
     bind(x, "XSendEvent", c.c_int, ptr, win, c.c_int, c.c_long, ptr)
     bind(x, "XClearArea", c.c_int, ptr, win, c.c_int, c.c_int, c.c_uint, c.c_uint, c.c_int)
     bind(x, "XFlush", c.c_int, ptr)
@@ -204,6 +206,21 @@ def main():
         first = until(lambda f: f.get("rendered", 0) >= 3, "first render")
         native = find(root, ready["title"])
         assert native, "Sample window not found"
+        actual, count, remaining, fmt, data = c.c_ulong(), c.c_ulong(), c.c_ulong(), c.c_int(), ptr()
+        status = x.XGetWindowProperty(display, native, x.XInternAtom(display, b"_NET_WM_ICON", False),
+            0, 2048, False, 0, c.byref(actual), c.byref(fmt), c.byref(count), c.byref(remaining), c.byref(data))
+        try:
+            assert status == 0 and fmt.value == 32 and count.value == 1026 and remaining.value == 0, "Missing native icon"
+            icon = list(c.cast(data, c.POINTER(c.c_ulong))[:count.value])
+            assert icon[:2] == [32, 32]
+            for y in range(32):
+                for xx in range(32):
+                    rgb = ((45, 160, 245) if xx < 16 else (70, 220, 180)) if y < 16 else ((250, 150, 65) if xx < 16 else (245, 220, 115))
+                    expected = 255 << 24 | rgb[0] << 16 | rgb[1] << 8 | rgb[2]
+                    assert (icon[2 + y * 32 + xx] & 0xffffffff) == expected, (xx, y, hex(icon[2 + y * 32 + xx]), hex(expected))
+        finally:
+            if data: x.XFree(data)
+        print("PASS: native _NET_WM_ICON contains exact top-down RGBA image")
         x.XMapRaised(display, native)
         x.XSetInputFocus(display, native, 1, 0)
         x.XWarpPointer(display, 0, native, 0, 0, 0, 0, 500, 440)
