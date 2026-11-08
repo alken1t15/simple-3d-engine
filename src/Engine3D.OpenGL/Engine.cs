@@ -63,6 +63,7 @@ public sealed class Engine : IDisposable
         _windowSize = new WindowSizeController(window, options);
         _windowSize.Refresh();
         ThrowIfGlfwError("applying window size limits");
+        _window.Resize += _windowSize.OnResize;
         _renderer = new SceneRenderer(); // шейдер собирается при создании: ошибка — до возврата Engine
         _ownerThreadId = Environment.CurrentManagedThreadId;
         _window.Refresh += OnRefresh;
@@ -166,6 +167,38 @@ public sealed class Engine : IDisposable
             ThrowIfWrongThread();
             return _windowSize.Limits;
         }
+    }
+
+    /// <summary>Последние ограничения обычного окна, в том числе для выбора размера перед выходом из fullscreen.</summary>
+    public ClientSizeLimits WindowedClientSizeLimits
+    {
+        get { ThrowIfDisposed(); ThrowIfWrongThread(); return _windowSize.WindowedLimits; }
+    }
+
+    /// <summary>Фактическая привязка окна к монитору. Только поток Create, до Dispose.</summary>
+    public bool IsFullscreen
+    {
+        get { ThrowIfDisposed(); ThrowIfWrongThread(); return _windowSize.IsFullscreen; }
+    }
+
+    /// <summary>Полный размер desktop video mode в логических пикселях, без вычитания рамки и панелей.
+    /// На Wayland без глобальной позиции окна используется основной монитор.</summary>
+    public (int Width, int Height) FullscreenSize
+    {
+        get { ThrowIfDisposed(); ThrowIfWrongThread(); return _windowSize.FullscreenSize; }
+    }
+
+    /// <summary>Переключает текущее окно в fullscreen с текущим desktop video mode либо обратно.
+    /// Сохраняет нормальный размер/позицию для восстановления. Только до Run или внутри onUpdate.
+    /// На Wayland позицию восстановления выбирает compositor. SetClientSize доступен только в оконном режиме.</summary>
+    public void SetFullscreen(bool fullscreen)
+    {
+        ThrowIfDisposed();
+        ThrowIfWrongThread();
+        if (_state != State.Created && !(_state == State.Running && _inUpdate))
+            throw new InvalidOperationException("SetFullscreen is allowed only before Run or inside onUpdate.");
+        _windowSize.SetFullscreen(fullscreen);
+        ThrowIfGlfwError("switching fullscreen mode");
     }
 
     /// <summary>Запрашивает размер клиентской области в логических пикселях, ограниченный ClientSizeLimits.
