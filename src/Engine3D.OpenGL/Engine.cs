@@ -32,6 +32,7 @@ public sealed class Engine : IDisposable
     private static string? s_glfwError;
 
     private readonly NativeWindow _window;
+    private readonly WindowSizeController _windowSize;
     private readonly SceneRenderer _renderer;
     private OverlayRenderer? _overlayRenderer;
     private OverlayFrame? _overlay;
@@ -56,9 +57,12 @@ public sealed class Engine : IDisposable
         GLFWProvider.SetErrorCallback(s_glfwErrorCallback);
     }
 
-    private Engine(NativeWindow window)
+    private Engine(NativeWindow window, EngineOptions options)
     {
         _window = window;
+        _windowSize = new WindowSizeController(window, options);
+        _windowSize.Refresh();
+        ThrowIfGlfwError("applying window size limits");
         _renderer = new SceneRenderer(); // шейдер собирается при создании: ошибка — до возврата Engine
         _ownerThreadId = Environment.CurrentManagedThreadId;
         _window.Refresh += OnRefresh;
@@ -152,6 +156,33 @@ public sealed class Engine : IDisposable
         }
     }
 
+    /// <summary>Эффективные ограничения размера окна; обновляются в каждом кадре.
+    /// Только поток Create, до Dispose. Максимумы без ограничения равны int.MaxValue.</summary>
+    public ClientSizeLimits ClientSizeLimits
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfWrongThread();
+            return _windowSize.Limits;
+        }
+    }
+
+    /// <summary>Запрашивает размер клиентской области в логических пикселях, ограниченный ClientSizeLimits.
+    /// Только до Run или внутри onUpdate на потоке Create. Фактический результат ОС читается
+    /// через ClientSize в последующих кадрах; на Wayland изменение асинхронное.</summary>
+    public void SetClientSize(int width, int height)
+    {
+        ThrowIfDisposed();
+        ThrowIfWrongThread();
+        if (_state != State.Created && !(_state == State.Running && _inUpdate))
+            throw new InvalidOperationException("SetClientSize is allowed only before Run or inside onUpdate.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        _windowSize.SetSize(width, height);
+        ThrowIfGlfwError("resizing the window");
+    }
+
     /// <summary>
     /// Текущее положение левого верхнего угла окна вместе с рамкой и размер клиентской области в тех же единицах,
     /// что <see cref="EngineOptions.Position"/>, <see cref="EngineOptions.Width"/> и <see cref="EngineOptions.Height"/>.
@@ -227,6 +258,11 @@ public sealed class Engine : IDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Height);
+        if (options.MinimumClientSize is { } minimum)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimum.Width);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimum.Height);
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Title);
 
         TakeGlfwError(); // ошибка, оставшаяся от предыдущего Engine, к этому вызову не относится
@@ -260,7 +296,7 @@ public sealed class Engine : IDisposable
             ThrowIfGlfwError("creating the window");
             GlErrors.ThrowIfAny("creating the OpenGL context");
 
-            return new Engine(window);
+            return new Engine(window, options);
         }
         catch (Exception exception)
         {
@@ -394,6 +430,9 @@ public sealed class Engine : IDisposable
             if (_closeRequested || _window.IsExiting)
                 break;
 
+            _windowSize.Refresh();
+            ThrowIfGlfwError("applying window size limits");
+
             if (_input.NeedsRearm) _input.ReconcileHeld(ReadHeldKeys());
             _pointer.ReconcileHeld(ReadHeldButtons());
             _pointer.SynchronizePosition(ReadPointerPosition());
@@ -433,6 +472,7 @@ public sealed class Engine : IDisposable
         var client = _window.ClientSize;
         if (IsMinimized() || size.X <= 0 || size.Y <= 0 || client.X <= 0 || client.Y <= 0)
             return;
+        if (!_windowSize.CanRender(client.X, client.Y)) return;
 
         // Сначала CPU: проверка состояния после onUpdate и матрицы — до любых GL-вызовов кадра.
         _frame.Prepare(_scene!, _camera!, size.X, size.Y);

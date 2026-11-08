@@ -9,6 +9,15 @@ public sealed class EngineOptions
     /// <summary>Высота клиентской области окна в логических пикселях; должна быть положительной.</summary>
     public int Height { get; init; } = 720;
 
+    /// <summary>Минимальный размер клиентской области; null — минимум не задан.
+    /// Если рабочая область меньше, эффективный минимум уменьшается до доступного размера.</summary>
+    public (int Width, int Height)? MinimumClientSize { get; init; }
+
+    /// <summary>Ограничивать окно рабочей областью монитора с учётом рамки.
+    /// На Wayland используется наименьшая логическая область подключённых мониторов:
+    /// backend не предоставляет положение окна и исключение панелей compositor.</summary>
+    public bool LimitToMonitorWorkArea { get; init; }
+
     /// <summary>Заголовок окна; не может быть пустым.</summary>
     public string Title { get; init; } = "Engine3D Demo";
 
