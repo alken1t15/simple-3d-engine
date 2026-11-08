@@ -511,3 +511,27 @@ SetClientSize в fullscreen запрещён с InvalidOperationException: сн�
 На Wayland GLFW 3.4 не сообщает монитор окна и рабочую область без панелей: используется
 наименьшая логическая область всех мониторов (physical video mode / content scale), без запроса Location.
 Это консервативное ограничение размера, а не гарантия размещения относительно панелей compositor.
+
+## Значок окна и измерение текста overlay
+
+`bool Engine.SetWindowIcon(TextureData icon)` копирует top-down RGBA8-данные в значок
+существующего окна Windows/X11. Вызывать на потоке Create до Run либо внутри onUpdate;
+после Run/Dispose и с чужого потока действуют обычные ограничения Engine. На Wayland
+и macOS возвращает false без изменения окна: там значок определяется desktop entry
+или app bundle. Переданный icon не может быть null. Метод не раскрывает native handles
+и не создаёт GPU-текстуру. Для PNG можно использовать `engine.LoadTexture` до Run.
+
+`UiRect OverlayTextMetrics.MeasureInkBounds(string text, float pixelHeight)` — CPU API
+без окна/контекста. Возвращает границы видимых пикселей встроенного atlas относительно
+`OverlayText.Position`; прозрачные поля atlas и внешние пробелы не считаются размером
+надписи. Высота положительна и finite, непредставимый в float результат отклоняется.
+Пустая строка/пробелы дают нулевой прямоугольник, неподдерживаемый Unicode scalar
+измеряется как один `?`, как и при отрисовке. Для центрирования вычитают центр
+полученного прямоугольника из центра кнопки. Все размеры в logical client pixels.
+
+Пример публичного API — [OverlaySample](../samples/OverlaySample/Program.cs).
+`check_overlay_x11.py` сравнивает все пиксели `_NET_WM_ICON` с RGBA источником;
+`WindowIconWindowsTests` проверяет большие/малые HICON через WM_GETICON/GDI.
+Обычные CPU-тесты проверяют метрики и не требуют дисплея. Для отдельной Windows-проверки
+собранная тестовая сборка запускается как `dotnet tests/Engine3D.Tests/bin/Release/net10.0/Engine3D.Tests.dll window-icon-windows`.
+Это проверка данных ОС, а не ручное подтверждение группировки закреплённых значков панели задач.

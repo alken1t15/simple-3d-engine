@@ -274,6 +274,23 @@ public sealed class Engine : IDisposable
         return TextureDecoder.Load(path);
     }
 
+    /// <summary>Задаёт RGBA8-значок существующего окна в Windows/X11. Строки идут сверху вниз.
+    /// Только до Run или внутри onUpdate, на потоке Create. Буфер копируется.
+    /// На Wayland/macOS возвращает false: значок там задаётся desktop entry/app bundle.</summary>
+    public bool SetWindowIcon(TextureData icon)
+    {
+        ArgumentNullException.ThrowIfNull(icon);
+        ThrowIfDisposed();
+        ThrowIfWrongThread();
+        if (_state != State.Created && !(_state == State.Running && _inUpdate))
+            throw new InvalidOperationException("SetWindowIcon is allowed only before Run or inside onUpdate.");
+        if (GLFW.GetPlatform() is not (Platform.Win32 or Platform.X11)) return false;
+        _window.Icon = new OpenTK.Windowing.Common.Input.WindowIcon(
+            new OpenTK.Windowing.Common.Input.Image(icon.Width, icon.Height, icon.Pixels.ToArray()));
+        ThrowIfGlfwError("setting the window icon");
+        return true;
+    }
+
     /// <summary>
     /// Только для проверок: вызывается после отрисовки кадра и до его показа с размером кадрового буфера и пикселями
     /// RGBA8 (строки снизу вверх, как отдает OpenGL).

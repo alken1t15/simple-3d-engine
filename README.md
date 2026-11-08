@@ -323,3 +323,8 @@ dotnet test Engine3D.sln -c Release --no-build --environment ENGINE3D_AUDIO_TEST
 ## Права
 
 Исходный код и документация проекта распространяются по [MIT License](LICENSE). Перед добавлением внешних моделей, текстур или библиотек записывать источник и лицензию в [THIRD_PARTY.md](THIRD_PARTY.md).
+
+`Engine.SetWindowIcon` передаёт RGBA-значок окну Windows/X11; на Wayland/macOS значок
+задаётся desktop entry/app bundle. `OverlayTextMetrics.MeasureInkBounds` измеряет
+видимые пиксели встроенного шрифта без окна для точного выравнивания подписей.
+[Контракт и ограничения](docs/api.md#значок-окна-и-измерение-текста-overlay).

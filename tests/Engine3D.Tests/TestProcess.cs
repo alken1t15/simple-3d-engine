@@ -27,6 +27,7 @@ public static class TestProcess
 
     public static int Main(string[] args) => args switch
     {
+        [WindowIconWindowsTests.Scenario] => WindowIconWindowsTests.Run(),
         [AudioNativeTests.NoDeviceScenario] => AudioNativeTests.Run(AudioNativeTests.NoDeviceScenario),
         [AudioNativeTests.NativeScenario] => AudioNativeTests.Run(AudioNativeTests.NativeScenario),
         [AudioNativeTests.ResumeRaceScenario] => AudioNativeTests.Run(AudioNativeTests.ResumeRaceScenario),
